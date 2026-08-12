@@ -235,12 +235,12 @@ server <- function(input, output, session) {
       if (identical(input$tef_mode, "Qualitative")) {
         tef_val <- input$tef_cat
       } else if (identical(input$tef_mode, "Distribution")) {
-        tef_val <- paste0("dist:", input$tef_dist)
+        tef_val <- paste0("dist:", input$tef_dist, "|params:", input$tef_params)
         attr(tef_val, 'dist') <- input$tef_dist
         attr(tef_val, 'params') <- input$tef_params
       } else if (identical(input$tef_mode, "Fit from file")) {
         # use selected tef_dist and tef_params (populated by fit button)
-        tef_val <- paste0("dist:", input$tef_dist)
+        tef_val <- paste0("dist:", input$tef_dist, "|params:", input$tef_params)
         attr(tef_val, 'dist') <- input$tef_dist
         attr(tef_val, 'params') <- input$tef_params
       }
@@ -250,11 +250,11 @@ server <- function(input, output, session) {
       if (identical(input$lm_mode, "Qualitative")) {
         lm_val <- input$lm_cat
       } else if (identical(input$lm_mode, "Distribution")) {
-        lm_val <- paste0("dist:", input$lm_dist)
+        lm_val <- paste0("dist:", input$lm_dist, "|params:", input$lm_params)
         attr(lm_val, 'dist') <- input$lm_dist
         attr(lm_val, 'params') <- input$lm_params
       } else if (identical(input$lm_mode, "Fit from file")) {
-        lm_val <- paste0("dist:", input$lm_dist)
+        lm_val <- paste0("dist:", input$lm_dist, "|params:", input$lm_params)
         attr(lm_val, 'dist') <- input$lm_dist
         attr(lm_val, 'params') <- input$lm_params
       }

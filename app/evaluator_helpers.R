@@ -16,7 +16,9 @@ evaluator_workspace <- function() {
   if (!dir.exists(results_dir)) dir.create(results_dir, recursive = TRUE)
 
   if (!file.exists(file.path(inputs_dir, "survey.xlsx")) ||
-      !file.exists(file.path(inputs_dir, "domains.csv"))) {
+      !file.exists(file.path(inputs_dir, "domains.csv")) ||
+      !file.exists(file.path(inputs_dir, "qualitative_mapping.csv"))
+  ) {
     evaluator::create_templates(base_dir)
   }
 
@@ -105,39 +107,59 @@ write_survey_scenario <- function(domain_id,
   if (!is.null(lef) && !is.na(lef) && nzchar(as.character(lef))) {
     scenario_description <- paste0(scenario_description, " [LEF=", lef, "]")
   }
+
   ws <- evaluator_workspace()
   survey_file <- file.path(ws$inputs_dir, "survey.xlsx")
+
   if (!file.exists(survey_file)) {
     evaluator::create_templates(ws$base_dir)
   }
 
   wb <- openxlsx::loadWorkbook(survey_file)
-  if (!domain_id %in% names(wb)) {
+
+  if (!(domain_id %in% names(wb))) {
     stop(sprintf("No se encuentra la hoja de dominio '%s' en survey.xlsx.", domain_id), call. = FALSE)
   }
 
   dat <- openxlsx::readWorkbook(survey_file, sheet = domain_id, colNames = FALSE)
+
+  if (is.null(dat) || nrow(dat) == 0) {
+    stop(sprintf("La hoja '%s' está vacía.", domain_id), call. = FALSE)
+  }
+
   threats_row <- which(dat[[1]] == "Threats")[1]
+
   if (is.na(threats_row)) {
     stop("No se pudo encontrar la fila 'Threats' en la hoja del dominio.", call. = FALSE)
   }
+
   header_row <- threats_row + 1
+
   data_rows <- seq(header_row + 1, nrow(dat))
+
   if (length(data_rows) == 0) {
     insert_row <- header_row + 1
   } else {
     filled_rows <- data_rows[!is.na(dat[data_rows, 1]) & dat[data_rows, 1] != ""]
-    last_filled <- if (length(filled_rows) == 0) header_row else max(filled_rows)
-    insert_row <- last_filled + 1
+
+    if (length(filled_rows) == 0) {
+      insert_row <- header_row + 1
+    } else {
+      last_filled <- max(filled_rows)
+      insert_row <- last_filled + 1
+    }
   }
 
   # If a scenario with the same ScenarioID exists, update that row instead of appending
   existing_row <- NA_integer_
+
   if (!is.null(scenario_id) && nzchar(as.character(scenario_id))) {
     # search column 6 (ScenarioID) in data_rows
     if (length(data_rows) > 0) {
       vals <- as.character(dat[data_rows, 6])
+
       matches <- which(!is.na(vals) & vals == as.character(scenario_id))
+
       if (length(matches) > 0) {
         existing_row <- data_rows[matches[1]]
       }
@@ -146,6 +168,7 @@ write_survey_scenario <- function(domain_id,
 
   # Extend row to include extra columns for TEF/LM distributions and params if the template supports them
   # We'll write V1:V7 as before; V8 TEF_dist, V9 TEF_params, V10 LM_dist, V11 LM_params
+
   ext_row_data <- data.frame(
     V1 = scenario_description,
     V2 = tcomm,
@@ -153,21 +176,15 @@ write_survey_scenario <- function(domain_id,
     V4 = tc,
     V5 = lm,
     V6 = scenario_id,
-    V7 = capabilities,
-    V8 = if (!is.null(attr(tef, 'dist'))) attr(tef, 'dist') else NA_character_,
-    V9 = if (!is.null(attr(tef, 'params'))) attr(tef, 'params') else NA_character_,
-    V10 = if (!is.null(attr(lm, 'dist'))) attr(lm, 'dist') else NA_character_,
-    V11 = if (!is.null(attr(lm, 'params'))) attr(lm, 'params') else NA_character_,
-    stringsAsFactors = FALSE
+    V7 = capabilities
   )
 
-  write_data <- ext_row_data
-
   if (!is.na(existing_row)) {
-    openxlsx::writeData(wb, sheet = domain_id, x = write_data, startRow = existing_row, colNames = FALSE)
+    openxlsx::writeData(wb, sheet = domain_id, x = ext_row_data, startRow = existing_row, colNames = FALSE)
   } else {
-    openxlsx::writeData(wb, sheet = domain_id, x = write_data, startRow = insert_row, colNames = FALSE)
+    openxlsx::writeData(wb, sheet = domain_id, x = ext_row_data, startRow = insert_row, colNames = FALSE)
   }
+
   openxlsx::saveWorkbook(wb, survey_file, overwrite = TRUE)
 
   survey_file
@@ -177,7 +194,7 @@ run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_work
   ws <- evaluator_workspace()
   inputs_dir <- ws$inputs_dir
   results_dir <- ws$results_dir
-
+  
   domains <- readr::read_csv(file.path(inputs_dir, "domains.csv"), col_types = readr::cols(.default = readr::col_character()))
   
   # Clean survey.xlsx: remove extra columns (V8-V11) before import
@@ -185,7 +202,7 @@ run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_work
   survey_file <- file.path(inputs_dir, "survey.xlsx")
   wb <- openxlsx::loadWorkbook(survey_file)
   
-  for (sheet_name in openxlsx::getSheetNames(wb)) {
+  for (sheet_name in openxlsx::getSheetNames(survey_file)) {
     if (sheet_name %in% c("Introduction", "Definitions", "Reference")) next
     
     dat <- openxlsx::readWorkbook(wb, sheet = sheet_name, colNames = FALSE)
@@ -198,7 +215,8 @@ run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_work
     }
   }
   openxlsx::saveWorkbook(wb, survey_file, overwrite = TRUE)
-  
+  domains <- readr::read_csv(file.path(inputs_dir, "domains.csv"),
+                    col_types = vroom::cols(.default = vroom::col_character()))
   evaluator::import_spreadsheet(survey_file, domains, inputs_dir)
   qual_inputs <- evaluator::read_qualitative_inputs(inputs_dir)
   evaluator::validate_scenarios(qual_inputs$qualitative_scenarios,
@@ -206,10 +224,10 @@ run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_work
                                domains,
                                qual_inputs$mappings)
 
-  quantitative_scenarios <- evaluator::encode_scenarios(qual_inputs$qualitative_scenarios,
-                                                        qual_inputs$capabilities,
-                                                        qual_inputs$mappings)
-
+  quantitative_scenarios <- encode_scenarios(scenarios = qual_inputs$qualitative_scenarios,
+                                                        capabilities = qual_inputs$capabilities,
+                                                        mappings = qual_inputs$mappings)
+  
   simulation_results <- quantitative_scenarios %>%
     dplyr::mutate(results = purrr::map(.data$scenario,
                                       evaluator::run_simulation,

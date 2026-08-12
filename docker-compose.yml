@@ -1,0 +1,9 @@
+services:
+  tfm-shiny:
+    build: .
+    container_name: tfm_shiny_evaluator
+    ports:
+      - "3838:3838"
+    volumes:
+      - ./ejemplos:/srv/shiny-server/ejemplos
+    restart: always
