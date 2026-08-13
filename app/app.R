@@ -24,13 +24,31 @@ tryCatch({
   stop(e)
 })
 
+# Build the survey.xlsx value for a dimension (TEF, TC, LM) based on its mode.
+# Qualitative -> the label; PERT -> dist:pert|params:min,mode,max;
+# Distribution / Fit from file -> dist:<name>|params:<key=value,...>
+build_dimension_value <- function(mode, qual = NULL, dist = NULL, params = NULL,
+                                  pert_min = NULL, pert_mode = NULL, pert_max = NULL) {
+  if (identical(mode, "Qualitative")) {
+    return(qual)
+  }
+  if (identical(mode, "PERT")) {
+    if (is.null(pert_min) || is.null(pert_mode) || is.null(pert_max)) {
+      stop("PERT requiere los valores Min, Mode y Max.", call. = FALSE)
+    }
+    return(sprintf("dist:pert|params:min=%s,mode=%s,max=%s", pert_min, pert_mode, pert_max))
+  }
+  # Distribution or Fit from file
+  return(paste0("dist:", dist, "|params:", params))
+}
+
 ui <- page_sidebar(
   title = "Evaluador Cuantitativo de Riesgos (TFM)",
   sidebar = sidebar(
     uiOutput("domain_ui"),
     textInput("scenario_description", "Descripción del escenario", value = ""),
     textInput("tcomm", "Threat Community", value = ""),
-    selectInput("tef_mode", "TEF mode", choices = c("Qualitative", "Distribution", "Fit from file"), selected = "Qualitative"),
+    selectInput("tef_mode", "TEF mode", choices = c("Qualitative", "Distribution", "Fit from file", "PERT"), selected = "Qualitative"),
     conditionalPanel(
       condition = "input.tef_mode == 'Qualitative'",
       selectInput("tef_cat", "TEF", choices = c("Frequent", "Occasional", "Rare"), selected = "Frequent")
@@ -38,15 +56,8 @@ ui <- page_sidebar(
     conditionalPanel(
       condition = "input.tef_mode == 'Distribution' || input.tef_mode == 'Fit from file'",
       tagList(
-        selectInput("tef_dist", "TEF distribution", choices = c("pois", "nbinom", "zipois", "zinegbin", "pert"), selected = "pois"),
-        textInput("tef_params", "TEF params (e.g. lambda=3 or size=2,mu=3)", value = ""),
-        conditionalPanel(
-          condition = "input.tef_dist == 'pert'",
-          numericInput("tef_pert_min", "PERT min", value = 0),
-          numericInput("tef_pert_mode", "PERT mode", value = 1),
-          numericInput("tef_pert_max", "PERT max", value = 2),
-          actionButton("btn_use_pert_tef", "Usar PERT para TEF", class = "btn-outline-secondary w-100")
-        )
+        selectInput("tef_dist", "TEF distribution", choices = c("pois", "nbinom", "zipois", "zinegbin"), selected = "pois"),
+        textInput("tef_params", "TEF params (e.g. lambda=3 or size=2,mu=3)", value = "")
       )
     ),
     conditionalPanel(
@@ -54,8 +65,28 @@ ui <- page_sidebar(
       fileInput("tef_hist_file", "Cargar histórico de conteos (TEF)", accept = c('.xlsx', '.xls', '.csv')),
       actionButton("btn_fit_tef", "Ajustar TEF desde histórico", class = "btn-outline-secondary w-100")
     ),
-    selectInput("tc", "TC", choices = c("High", "Medium", "Low"), selected = "Medium"),
-    selectInput("lm_mode", "LM mode", choices = c("Qualitative", "Distribution", "Fit from file"), selected = "Qualitative"),
+    conditionalPanel(
+      condition = "input.tef_mode == 'PERT'",
+      tagList(
+        numericInput("tef_pert_min", "TEF PERT Min", value = 0),
+        numericInput("tef_pert_mode", "TEF PERT Mode", value = 1),
+        numericInput("tef_pert_max", "TEF PERT Max", value = 2)
+      )
+    ),
+    selectInput("tc_mode", "TC mode", choices = c("Qualitative", "PERT"), selected = "Qualitative"),
+    conditionalPanel(
+      condition = "input.tc_mode == 'Qualitative'",
+      selectInput("tc", "TC", choices = c("High", "Medium", "Low"), selected = "Medium")
+    ),
+    conditionalPanel(
+      condition = "input.tc_mode == 'PERT'",
+      tagList(
+        numericInput("tc_pert_min", "TC PERT Min", value = 0),
+        numericInput("tc_pert_mode", "TC PERT Mode", value = 0.5),
+        numericInput("tc_pert_max", "TC PERT Max", value = 1)
+      )
+    ),
+    selectInput("lm_mode", "LM mode", choices = c("Qualitative", "Distribution", "Fit from file", "PERT"), selected = "Qualitative"),
     conditionalPanel(
       condition = "input.lm_mode == 'Qualitative'",
       selectInput("lm_cat", "LM", choices = c("High", "Medium", "Low"), selected = "Medium")
@@ -63,21 +94,22 @@ ui <- page_sidebar(
     conditionalPanel(
       condition = "input.lm_mode == 'Distribution' || input.lm_mode == 'Fit from file'",
       tagList(
-        selectInput("lm_dist", "LM distribution", choices = c("gamma", "lnorm", "weibull", "pert"), selected = "gamma"),
-        textInput("lm_params", "LM params (e.g. shape=2,rate=0.5)", value = ""),
-        conditionalPanel(
-          condition = "input.lm_dist == 'pert'",
-          numericInput("lm_pert_min", "PERT min", value = 0),
-          numericInput("lm_pert_mode", "PERT mode", value = 1),
-          numericInput("lm_pert_max", "PERT max", value = 2),
-          actionButton("btn_use_pert_lm", "Usar PERT para LM", class = "btn-outline-secondary w-100")
-        )
+        selectInput("lm_dist", "LM distribution", choices = c("gamma", "lnorm", "weibull"), selected = "gamma"),
+        textInput("lm_params", "LM params (e.g. shape=2,rate=0.5)", value = "")
       )
     ),
     conditionalPanel(
       condition = "input.lm_mode == 'Fit from file'",
       fileInput("lm_hist_file", "Cargar histórico de pérdidas (LM)", accept = c('.xlsx', '.xls', '.csv')),
       actionButton("btn_fit_lm", "Ajustar LM desde histórico", class = "btn-outline-secondary w-100")
+    ),
+    conditionalPanel(
+      condition = "input.lm_mode == 'PERT'",
+      tagList(
+        numericInput("lm_pert_min", "LM PERT Min", value = 0),
+        numericInput("lm_pert_mode", "LM PERT Mode", value = 1),
+        numericInput("lm_pert_max", "LM PERT Max", value = 2)
+      )
     ),
     textInput("scenario_id", "ScenarioID", value = "RS-001"),
     textInput("capabilities", "Capabilities (comma-separated IDs)", value = "CAP-01"),
@@ -232,23 +264,6 @@ server <- function(input, output, session) {
     })
   })
 
-  # Use PERT buttons to populate params
-  observeEvent(input$btn_use_pert_tef, {
-    params <- sprintf('min=%s,mode=%s,max=%s', input$tef_pert_min, input$tef_pert_mode, input$tef_pert_max)
-    updateTextInput(session, 'tef_params', value = params)
-    analysis_message('PERT TEF copiado en parámetros.')
-  })
-
-  observeEvent(input$btn_use_pert_lm, {
-    params <- sprintf('min=%s,mode=%s,max=%s', input$lm_pert_min, input$lm_pert_mode, input$lm_pert_max)
-    updateTextInput(session, 'lm_params', value = params)
-    analysis_message('PERT LM copiado en parámetros.')
-  })
-
-  # remove old lef fit buttons and fields if present
-
-
-
   observeEvent(input$btn_add_scenario, {
     tryCatch({
       if (!is.null(input$survey_file)) {
@@ -258,43 +273,45 @@ server <- function(input, output, session) {
         return()
       }
 
-      req(input$domain_id, input$scenario_description, input$tcomm, input$tc, input$scenario_id, input$capabilities)
+      req(input$domain_id, input$scenario_description, input$tcomm, input$scenario_id, input$capabilities)
 
-      # Build TEF value + attributes depending on mode
-      tef_val <- NULL
-      if (identical(input$tef_mode, "Qualitative")) {
-        tef_val <- input$tef_cat
-      } else if (identical(input$tef_mode, "Distribution")) {
-        tef_val <- paste0("dist:", input$tef_dist, "|params:", input$tef_params)
-        attr(tef_val, 'dist') <- input$tef_dist
-        attr(tef_val, 'params') <- input$tef_params
-      } else if (identical(input$tef_mode, "Fit from file")) {
-        # use selected tef_dist and tef_params (populated by fit button)
-        tef_val <- paste0("dist:", input$tef_dist, "|params:", input$tef_params)
-        attr(tef_val, 'dist') <- input$tef_dist
-        attr(tef_val, 'params') <- input$tef_params
-      }
+      # Build TEF value depending on mode
+      tef_val <- build_dimension_value(
+        mode = input$tef_mode,
+        qual = input$tef_cat,
+        dist = input$tef_dist,
+        params = input$tef_params,
+        pert_min = input$tef_pert_min,
+        pert_mode = input$tef_pert_mode,
+        pert_max = input$tef_pert_max
+      )
 
-      # Build LM value + attributes depending on mode
-      lm_val <- NULL
-      if (identical(input$lm_mode, "Qualitative")) {
-        lm_val <- input$lm_cat
-      } else if (identical(input$lm_mode, "Distribution")) {
-        lm_val <- paste0("dist:", input$lm_dist, "|params:", input$lm_params)
-        attr(lm_val, 'dist') <- input$lm_dist
-        attr(lm_val, 'params') <- input$lm_params
-      } else if (identical(input$lm_mode, "Fit from file")) {
-        lm_val <- paste0("dist:", input$lm_dist, "|params:", input$lm_params)
-        attr(lm_val, 'dist') <- input$lm_dist
-        attr(lm_val, 'params') <- input$lm_params
-      }
+      # Build TC value depending on mode
+      tc_val <- build_dimension_value(
+        mode = input$tc_mode,
+        qual = input$tc,
+        pert_min = input$tc_pert_min,
+        pert_mode = input$tc_pert_mode,
+        pert_max = input$tc_pert_max
+      )
+
+      # Build LM value depending on mode
+      lm_val <- build_dimension_value(
+        mode = input$lm_mode,
+        qual = input$lm_cat,
+        dist = input$lm_dist,
+        params = input$lm_params,
+        pert_min = input$lm_pert_min,
+        pert_mode = input$lm_pert_mode,
+        pert_max = input$lm_pert_max
+      )
 
       write_survey_scenario(
         domain_id = input$domain_id,
         scenario_description = input$scenario_description,
         tcomm = input$tcomm,
         tef = tef_val,
-        tc = input$tc,
+        tc = tc_val,
         lm = lm_val,
         scenario_id = input$scenario_id,
         capabilities = input$capabilities,
@@ -373,6 +390,9 @@ server <- function(input, output, session) {
     mode <- input$tef_mode
     if (identical(mode, "Qualitative")) {
       sprintf("<b>TEF (Qualitative):</b> %s", input$tef_cat)
+    } else if (identical(mode, "PERT")) {
+      sprintf("<b>TEF (PERT):</b> Min=%s, Mode=%s, Max=%s",
+              input$tef_pert_min, input$tef_pert_mode, input$tef_pert_max)
     } else if (identical(mode, "Distribution")) {
       sprintf("<b>TEF (Distribution):</b> %s<br>Parameters: %s", input$tef_dist, input$tef_params)
     } else {
@@ -388,6 +408,9 @@ server <- function(input, output, session) {
     mode <- input$lm_mode
     if (identical(mode, "Qualitative")) {
       sprintf("<b>LM (Qualitative):</b> %s", input$lm_cat)
+    } else if (identical(mode, "PERT")) {
+      sprintf("<b>LM (PERT):</b> Min=%s, Mode=%s, Max=%s",
+              input$lm_pert_min, input$lm_pert_mode, input$lm_pert_max)
     } else if (identical(mode, "Distribution")) {
       sprintf("<b>LM (Distribution):</b> %s<br>Parameters: %s", input$lm_dist, input$lm_params)
     } else {
