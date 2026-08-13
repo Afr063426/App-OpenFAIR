@@ -15,6 +15,8 @@ tryCatch({
   library(openxlsx)
   library(dplyr)
   library(purrr)
+  library(tidyr)
+  library(scales)
   source("fit_dist.R")
   source("evaluator_helpers.R")
 }, error = function(e) {
@@ -34,7 +36,7 @@ ui <- page_sidebar(
       selectInput("tef_cat", "TEF", choices = c("Frequent", "Occasional", "Rare"), selected = "Frequent")
     ),
     conditionalPanel(
-      condition = "input.tef_mode == 'Distribution'",
+      condition = "input.tef_mode == 'Distribution' || input.tef_mode == 'Fit from file'",
       tagList(
         selectInput("tef_dist", "TEF distribution", choices = c("pois", "nbinom", "zipois", "zinegbin", "pert"), selected = "pois"),
         textInput("tef_params", "TEF params (e.g. lambda=3 or size=2,mu=3)", value = ""),
@@ -59,7 +61,7 @@ ui <- page_sidebar(
       selectInput("lm_cat", "LM", choices = c("High", "Medium", "Low"), selected = "Medium")
     ),
     conditionalPanel(
-      condition = "input.lm_mode == 'Distribution'",
+      condition = "input.lm_mode == 'Distribution' || input.lm_mode == 'Fit from file'",
       tagList(
         selectInput("lm_dist", "LM distribution", choices = c("gamma", "lnorm", "weibull", "pert"), selected = "gamma"),
         textInput("lm_params", "LM params (e.g. shape=2,rate=0.5)", value = ""),
@@ -84,22 +86,50 @@ ui <- page_sidebar(
     actionButton("btn_run_analysis", "Ejecutar análisis", class = "btn-primary w-100"),
     downloadButton("dl_survey", "Descargar survey.xlsx")
   ),
-  card(
-    card_header("Ajustes de TEF / LM"),
-    htmlOutput("tef_summary"),
-    plotlyOutput("tef_plot", height = "250px"),
-    htmlOutput("lm_summary"),
-    plotlyOutput("lm_plot", height = "250px"),
-    tags$hr(),
-    h4("Vista previa de la encuesta cargada"),
-    tableOutput("survey_preview"),
-    tags$hr(),
-    verbatimTextOutput("analysis_message")
+  navset_card_tab(
+    nav_panel(
+      "Configuración",
+      card_header("Ajustes de TEF / LM"),
+      htmlOutput("tef_summary"),
+      plotlyOutput("tef_plot", height = "250px"),
+      htmlOutput("lm_summary"),
+      plotlyOutput("lm_plot", height = "250px"),
+      tags$hr(),
+      h4("Vista previa de la encuesta cargada"),
+      tableOutput("survey_preview"),
+      tags$hr(),
+      verbatimTextOutput("analysis_message")
+    ),
+    nav_panel(
+      "Resultados por Escenario",
+      card_header("Resumen por Escenario"),
+      verbatimTextOutput("analysis_message_scenarios"),
+      tableOutput("scenario_summary_table"),
+      downloadButton("dl_scenario_csv", "Descargar resumen escenarios (CSV)", class = "btn-outline-secondary mb-3"),
+      tags$hr(),
+      uiOutput("scenario_selector_ui"),
+      plotlyOutput("scenario_scatter_plot", height = "400px")
+    ),
+    nav_panel(
+      "Resultados por Dominio",
+      card_header("Resumen por Dominio"),
+      tableOutput("domain_summary_table"),
+      downloadButton("dl_domain_csv", "Descargar resumen dominios (CSV)", class = "btn-outline-secondary mb-3"),
+      tags$hr(),
+      plotlyOutput("domain_ale_bar_plot", height = "400px")
+    ),
+    nav_panel(
+      "Curva de Excedencia",
+      card_header("Loss Exceedance Curve"),
+      uiOutput("exceedance_scenario_selector_ui"),
+      plotlyOutput("exceedance_plot", height = "450px")
+    )
   )
 )
 
 server <- function(input, output, session) {
   analysis_message <- reactiveVal(NULL)
+  analysis_results <- reactiveVal(NULL)
 
   output$domain_ui <- renderUI({
     selectInput("domain_id", "Dominio", choices = get_evaluator_domain_choices(), selected = "ISMP")
@@ -278,11 +308,17 @@ server <- function(input, output, session) {
 
   observeEvent(input$btn_run_analysis, {
     analysis_message(NULL)
-    tryCatch({
-      res <- run_evaluator_analysis(iterations = 1000)
-      analysis_message(sprintf("Análisis completado. Resultados en: %s", res$results_dir))
-    }, error = function(e) {
-      analysis_message(paste("Error en análisis:", e$message))
+    analysis_results(NULL)
+    withProgress(message = "Ejecutando simulación...", value = 0, {
+      tryCatch({
+        incProgress(0.1, detail = "Importando escenarios")
+        res <- run_evaluator_analysis(iterations = 10)
+        incProgress(0.9, detail = "Completado")
+        analysis_results(res)
+        analysis_message(sprintf("Análisis completado. Resultados en: %s", res$results_dir))
+      }, error = function(e) {
+        analysis_message(paste("Error en análisis:", e$message))
+      })
     })
   })
 
@@ -293,6 +329,22 @@ server <- function(input, output, session) {
       src <- file.path(ws$inputs_dir, "survey.xlsx")
       if (!file.exists(src)) stop("survey.xlsx no encontrado", call. = FALSE)
       file.copy(src, file, overwrite = TRUE)
+    }
+  )
+
+  output$dl_scenario_csv <- downloadHandler(
+    filename = function() paste0("resumen_escenarios_", Sys.Date(), ".csv"),
+    content = function(file) {
+      req(analysis_results())
+      write.csv(analysis_results()$scenario_summary, file, row.names = FALSE)
+    }
+  )
+
+  output$dl_domain_csv <- downloadHandler(
+    filename = function() paste0("resumen_dominios_", Sys.Date(), ".csv"),
+    content = function(file) {
+      req(analysis_results())
+      write.csv(analysis_results()$domain_summary, file, row.names = FALSE)
     }
   )
 
@@ -345,6 +397,113 @@ server <- function(input, output, session) {
 
   output$lm_plot <- renderPlotly({
     ggplotly(ggplot() + geom_blank() + theme_void() + ggtitle("LM Distribution Plot"))
+  })
+
+  # --- Results: Scenario summary table ---
+  output$analysis_message_scenarios <- renderText({
+    if (is.null(analysis_results())) "Ejecuta el análisis primero." else ""
+  })
+
+  output$scenario_summary_table <- renderTable({
+    req(analysis_results())
+    res <- analysis_results()$scenario_summary
+    res |>
+      dplyr::select(scenario_id, domain_id, ale_median, ale_max, ale_var,
+                     loss_events_mean, mean_vuln) |>
+      dplyr::mutate(
+        ale_median = scales::dollar(ale_median, accuracy = 1),
+        ale_max = scales::dollar(ale_max, accuracy = 1),
+        ale_var = scales::dollar(ale_var, accuracy = 1),
+        loss_events_mean = round(loss_events_mean, 2),
+        mean_vuln = scales::percent(mean_vuln, accuracy = 0.1)
+      )
+  })
+
+  # --- Results: Scenario selector ---
+  output$scenario_selector_ui <- renderUI({
+    req(analysis_results())
+    ids <- analysis_results()$scenario_summary$scenario_id
+    selectInput("selected_scenario", "Seleccionar escenario", choices = ids)
+  })
+
+  # --- Results: Scatter plot (loss events vs ALE) per scenario ---
+  output$scenario_scatter_plot <- renderPlotly({
+    req(analysis_results(), input$selected_scenario)
+    sim <- analysis_results()$simulation_results
+    all_results <- tidyr::unnest(sim, results)
+    dat <- all_results |> dplyr::filter(scenario_id == input$selected_scenario)
+    req(nrow(dat) > 0)
+
+    gg <- ggplot(dat, aes(x = loss_events, y = ale)) +
+      geom_point(alpha = 0.3) +
+      scale_y_continuous(labels = scales::dollar) +
+      scale_x_continuous(labels = scales::comma) +
+      labs(x = "Eventos de pérdida (anualizado)", y = "Pérdida anual esperada (ALE)",
+           title = paste("Escenario:", input$selected_scenario)) +
+      theme_minimal()
+    ggplotly(gg)
+  })
+
+  # --- Results: Domain summary table ---
+  output$domain_summary_table <- renderTable({
+    req(analysis_results())
+    res <- analysis_results()$domain_summary
+    res |>
+      dplyr::select(domain_id, ale_median, ale_mean, ale_max, ale_var,
+                     mean_loss_events, mean_vuln) |>
+      dplyr::mutate(
+        ale_median = scales::dollar(ale_median, accuracy = 1),
+        ale_mean = scales::dollar(ale_mean, accuracy = 1),
+        ale_max = scales::dollar(ale_max, accuracy = 1),
+        ale_var = scales::dollar(ale_var, accuracy = 1),
+        mean_loss_events = round(mean_loss_events, 2),
+        mean_vuln = scales::percent(mean_vuln, accuracy = 0.1)
+      )
+  })
+
+  # --- Results: Domain ALE bar chart ---
+  output$domain_ale_bar_plot <- renderPlotly({
+    req(analysis_results())
+    dom <- analysis_results()$domain_summary
+
+    gg <- ggplot(dom, aes(x = reorder(domain_id, ale_median), y = ale_median)) +
+      geom_col() +
+      scale_y_continuous(labels = scales::dollar) +
+      labs(x = "Dominio", y = "ALE Mediana",
+           title = "Pérdida anual esperada (mediana) por dominio") +
+      theme_minimal()
+    ggplotly(gg)
+  })
+
+  # --- Results: Exceedance curve ---
+  output$exceedance_scenario_selector_ui <- renderUI({
+    req(analysis_results())
+    ids <- analysis_results()$scenario_summary$scenario_id
+    selectInput("exceedance_scenario", "Seleccionar escenario", choices = ids)
+  })
+
+  output$exceedance_plot <- renderPlotly({
+    req(analysis_results(), input$exceedance_scenario)
+    sim <- analysis_results()$simulation_results
+    all_results <- tidyr::unnest(sim, results)
+    dat <- all_results |> dplyr::filter(scenario_id == input$exceedance_scenario)
+    req(nrow(dat) > 0)
+
+    # Build exceedance curve: sort by ALE descending, compute probability
+    exc <- dat |>
+      dplyr::arrange(ale) |>
+      dplyr::mutate(prob = 1 - dplyr::percent_rank(ale))
+
+    gg <- ggplot(exc, aes(x = prob, y = ale)) +
+      geom_line() +
+      geom_vline(xintercept = 0.8, color = "red", linetype = "dashed") +
+      scale_x_reverse(labels = scales::percent) +
+      scale_y_continuous(labels = scales::dollar) +
+      labs(x = "Probabilidad de pérdida igual o mayor",
+           y = "Pérdida (ALE)",
+           title = paste("Curva de excedencia:", input$exceedance_scenario)) +
+      theme_minimal()
+    ggplotly(gg)
   })
 }
 

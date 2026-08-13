@@ -93,6 +93,104 @@ import_uploaded_survey_data <- function(df, default_domain_id = NULL, base_dir =
   invisible(nrow(df))
 }
 
+# write_survey_scenario <- function(domain_id,
+#                                   scenario_description,
+#                                   tcomm,
+#                                   tef,
+#                                   tc,
+#                                   lm,
+#                                   scenario_id,
+#                                   capabilities,
+#                                   lef = NULL,
+#                                   base_dir = evaluator_workspace()$base_dir) {
+#   # Allow lef to be appended to description or kept separate; we'll append for compatibility
+#   if (!is.null(lef) && !is.na(lef) && nzchar(as.character(lef))) {
+#     scenario_description <- paste0(scenario_description, " [LEF=", lef, "]")
+#   }
+
+#   ws <- evaluator_workspace()
+#   survey_file <- file.path(ws$inputs_dir, "survey.xlsx")
+
+#   if (!file.exists(survey_file)) {
+#     evaluator::create_templates(ws$base_dir)
+#   }
+
+#   wb <- openxlsx::loadWorkbook(survey_file)
+
+#   if (!(domain_id %in% names(wb))) {
+#     stop(sprintf("No se encuentra la hoja de dominio '%s' en survey.xlsx.", domain_id), call. = FALSE)
+#   }
+
+#   dat <- openxlsx::readWorkbook(survey_file, sheet = domain_id, colNames = FALSE)
+
+#   if (is.null(dat) || nrow(dat) == 0) {
+#     stop(sprintf("La hoja '%s' está vacía.", domain_id), call. = FALSE)
+#   }
+
+#   threats_row <- which(dat[[1]] == "Threats")[1]
+
+#   if (is.na(threats_row)) {
+#     stop("No se pudo encontrar la fila 'Threats' en la hoja del dominio.", call. = FALSE)
+#   }
+
+#   header_row <- threats_row + 1
+
+#   data_rows <- seq(header_row + 1, nrow(dat))
+
+#   if (length(data_rows) == 0) {
+#     insert_row <- header_row + 1
+#   } else {
+#     filled_rows <- data_rows[!is.na(dat[data_rows, 1]) & dat[data_rows, 1] != ""]
+
+#     if (length(filled_rows) == 0) {
+#       insert_row <- header_row + 1
+#     } else {
+#       last_filled <- max(filled_rows)
+#       insert_row <- last_filled + 1
+#     }
+#   }
+
+#   # If a scenario with the same ScenarioID exists, update that row instead of appending
+#   existing_row <- NA_integer_
+
+#   if (!is.null(scenario_id) && nzchar(as.character(scenario_id))) {
+#     # search column 6 (ScenarioID) in data_rows
+#     if (length(data_rows) > 0) {
+#       vals <- as.character(dat[data_rows, 6])
+
+#       matches <- which(!is.na(vals) & vals == as.character(scenario_id))
+
+#       if (length(matches) > 0) {
+#         existing_row <- data_rows[matches[1]]
+#       }
+#     }
+#   }
+
+#   # Extend row to include extra columns for TEF/LM distributions and params if the template supports them
+#   # We'll write V1:V7 as before; V8 TEF_dist, V9 TEF_params, V10 LM_dist, V11 LM_params
+
+#   ext_row_data <- data.frame(
+#     V1 = scenario_description,
+#     V2 = tcomm,
+#     V3 = tef,
+#     V4 = tc,
+#     V5 = lm,
+#     V6 = scenario_id,
+#     V7 = capabilities
+#   )
+
+#   if (!is.na(existing_row)) {
+#     openxlsx::writeData(wb, sheet = domain_id, x = ext_row_data, startRow = existing_row, colNames = FALSE)
+#   } else {
+#     openxlsx::writeData(wb, sheet = domain_id, x = ext_row_data, startRow = insert_row, colNames = FALSE)
+#   }
+
+#   openxlsx::saveWorkbook(wb, survey_file, overwrite = TRUE)
+
+#   survey_file
+# }
+
+
 write_survey_scenario <- function(domain_id,
                                   scenario_description,
                                   tcomm,
@@ -102,8 +200,9 @@ write_survey_scenario <- function(domain_id,
                                   scenario_id,
                                   capabilities,
                                   lef = NULL,
+                                  append = TRUE,
                                   base_dir = evaluator_workspace()$base_dir) {
-  # Allow lef to be appended to description or kept separate; we'll append for compatibility
+  # Formatear la descripción si viene con LEF
   if (!is.null(lef) && !is.na(lef) && nzchar(as.character(lef))) {
     scenario_description <- paste0(scenario_description, " [LEF=", lef, "]")
   }
@@ -121,13 +220,16 @@ write_survey_scenario <- function(domain_id,
     stop(sprintf("No se encuentra la hoja de dominio '%s' en survey.xlsx.", domain_id), call. = FALSE)
   }
 
-  dat <- openxlsx::readWorkbook(survey_file, sheet = domain_id, colNames = FALSE)
+  # 1. Leer la hoja sin omitir filas vacías para tener el mapa exacto de Excel
+  dat <- openxlsx::readWorkbook(survey_file, sheet = domain_id, colNames = FALSE, skipEmptyRows = FALSE)
 
   if (is.null(dat) || nrow(dat) == 0) {
     stop(sprintf("La hoja '%s' está vacía.", domain_id), call. = FALSE)
   }
 
-  threats_row <- which(dat[[1]] == "Threats")[1]
+  # Buscar dónde está la palabra "Threats" en la columna 1
+  col1_vals <- as.character(dat[[1]])
+  threats_row <- which(!is.na(col1_vals) & col1_vals == "Threats")[1]
 
   if (is.na(threats_row)) {
     stop("No se pudo encontrar la fila 'Threats' en la hoja del dominio.", call. = FALSE)
@@ -135,40 +237,41 @@ write_survey_scenario <- function(domain_id,
 
   header_row <- threats_row + 1
 
-  data_rows <- seq(header_row + 1, nrow(dat))
-
-  if (length(data_rows) == 0) {
-    insert_row <- header_row + 1
-  } else {
-    filled_rows <- data_rows[!is.na(dat[data_rows, 1]) & dat[data_rows, 1] != ""]
-
-    if (length(filled_rows) == 0) {
-      insert_row <- header_row + 1
-    } else {
-      last_filled <- max(filled_rows)
-      insert_row <- last_filled + 1
-    }
-  }
-
-  # If a scenario with the same ScenarioID exists, update that row instead of appending
-  existing_row <- NA_integer_
-
-  if (!is.null(scenario_id) && nzchar(as.character(scenario_id))) {
-    # search column 6 (ScenarioID) in data_rows
-    if (length(data_rows) > 0) {
-      vals <- as.character(dat[data_rows, 6])
-
-      matches <- which(!is.na(vals) & vals == as.character(scenario_id))
-
-      if (length(matches) > 0) {
-        existing_row <- data_rows[matches[1]]
+  # 2. Buscar todas las filas que tengan texto en la columna 1 (Scenario) después del encabezado
+  data_rows <- seq(header_row + 1, max(nrow(dat), header_row + 1))
+  
+  filled_rows <- integer(0)
+  if (nrow(dat) >= (header_row + 1)) {
+    for (r in seq(header_row + 1, nrow(dat))) {
+      val <- dat[r, 1]
+      if (!is.na(val) && nzchar(trimws(as.character(val)))) {
+        filled_rows <- c(filled_rows, r)
       }
     }
   }
 
-  # Extend row to include extra columns for TEF/LM distributions and params if the template supports them
-  # We'll write V1:V7 as before; V8 TEF_dist, V9 TEF_params, V10 LM_dist, V11 LM_params
+  # 3. Buscar si existe el ScenarioID solo si append = FALSE
+  existing_row <- NA_integer_
+  if (!append && !is.null(scenario_id) && nzchar(as.character(scenario_id))) {
+    for (r in seq(header_row + 1, nrow(dat))) {
+      scen_val <- dat[r, 6] # Columna 6 es ScenarioID
+      if (!is.na(scen_val) && as.character(scen_val) == as.character(scenario_id)) {
+        existing_row <- r
+        break
+      }
+    }
+  }
 
+  # 4. Determinar con precisión matemática la fila de inserción
+  if (!is.na(existing_row)) {
+    target_row <- existing_row
+  } else if (length(filled_rows) > 0) {
+    target_row <- max(filled_rows) + 1  # Fila inmediatamente posterior al último escenario
+  } else {
+    target_row <- header_row + 1        # Si está vacía, primera fila de datos
+  }
+
+  # 5. Crear el dataframe de 1 sola fila
   ext_row_data <- data.frame(
     V1 = scenario_description,
     V2 = tcomm,
@@ -176,21 +279,25 @@ write_survey_scenario <- function(domain_id,
     V4 = tc,
     V5 = lm,
     V6 = scenario_id,
-    V7 = capabilities
+    V7 = capabilities,
+    stringsAsFactors = FALSE
   )
 
-  if (!is.na(existing_row)) {
-    openxlsx::writeData(wb, sheet = domain_id, x = ext_row_data, startRow = existing_row, colNames = FALSE)
-  } else {
-    openxlsx::writeData(wb, sheet = domain_id, x = ext_row_data, startRow = insert_row, colNames = FALSE)
-  }
+  # 6. Escribir directamente en la fila objetivo
+  openxlsx::writeData(
+    wb = wb,
+    sheet = domain_id,
+    x = ext_row_data,
+    startRow = target_row,
+    colNames = FALSE
+  )
 
   openxlsx::saveWorkbook(wb, survey_file, overwrite = TRUE)
 
   survey_file
 }
 
-run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_workspace()$base_dir) {
+run_evaluator_analysis <- function(iterations = 1e3, base_dir = evaluator_workspace()$base_dir) {
   ws <- evaluator_workspace()
   inputs_dir <- ws$inputs_dir
   results_dir <- ws$results_dir
@@ -224,10 +331,10 @@ run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_work
                                domains,
                                qual_inputs$mappings)
 
-  quantitative_scenarios <- encode_scenarios(scenarios = qual_inputs$qualitative_scenarios,
+  quantitative_scenarios <- evaluator::encode_scenarios(scenarios = qual_inputs$qualitative_scenarios,
                                                         capabilities = qual_inputs$capabilities,
                                                         mappings = qual_inputs$mappings)
-  
+
   simulation_results <- quantitative_scenarios %>%
     dplyr::mutate(results = purrr::map(.data$scenario,
                                       evaluator::run_simulation,
@@ -238,6 +345,11 @@ run_evaluator_analysis <- function(iterations = 10000, base_dir = evaluator_work
 
   evaluator::summarize_to_disk(simulation_results = simulation_results, results_dir)
 
+  scenario_summary <- evaluator::summarize_scenarios(simulation_results)
+  domain_summary <- evaluator::summarize_domains(simulation_results)
+
   list(results_dir = results_dir,
-       simulation_results = simulation_results)
+       simulation_results = simulation_results,
+       scenario_summary = scenario_summary,
+       domain_summary = domain_summary)
 }
