@@ -297,7 +297,9 @@ write_survey_scenario <- function(domain_id,
   survey_file
 }
 
-run_evaluator_analysis <- function(iterations = 1e3, base_dir = evaluator_workspace()$base_dir) {
+run_evaluator_analysis <- function(iterations = 1e3,
+                                   custom_diff_params = NULL,
+                                   base_dir = evaluator_workspace()$base_dir) {
   ws <- evaluator_workspace()
   inputs_dir <- ws$inputs_dir
   results_dir <- ws$results_dir
@@ -335,6 +337,20 @@ run_evaluator_analysis <- function(iterations = 1e3, base_dir = evaluator_worksp
                                                         capabilities = qual_inputs$capabilities,
                                                         mappings = qual_inputs$mappings)
 
+  # Sobrescribir la efectividad (DIFF) de controles configurados con Beta-PERT
+  # personalizada. custom_diff_params: lista nombrada en formato evaluator,
+  # ej. list(`CAP-01` = list(min=0.7, mode=0.85, max=0.98, shape=4,
+  #                          func="mc2d::rpert")) generada por el módulo de
+  # capabilities de la app.
+  if (!is.null(custom_diff_params) && length(custom_diff_params) > 0) {
+    quantitative_scenarios <- quantitative_scenarios |>
+      dplyr::mutate(scenario = purrr::map(.data$scenario, function(sc) {
+        sc$parameters$diff <- utils::modifyList(sc$parameters$diff,
+                                                custom_diff_params)
+        sc
+      }))
+  }
+
   simulation_results <- quantitative_scenarios %>%
     dplyr::mutate(results = purrr::map(.data$scenario,
                                       evaluator::run_simulation,
@@ -348,8 +364,169 @@ run_evaluator_analysis <- function(iterations = 1e3, base_dir = evaluator_worksp
   scenario_summary <- evaluator::summarize_scenarios(simulation_results)
   domain_summary <- evaluator::summarize_domains(simulation_results)
 
+  # Enrich scenario summary with qualitative metadata (tcomm, description)
+  scenario_meta <- qual_inputs$qualitative_scenarios |>
+    dplyr::select(scenario_id, tcomm, scenario_description = scenario)
+  scenario_summary <- scenario_summary |>
+    dplyr::left_join(scenario_meta, by = "scenario_id")
+
   list(results_dir = results_dir,
        simulation_results = simulation_results,
        scenario_summary = scenario_summary,
-       domain_summary = domain_summary)
+       domain_summary = domain_summary,
+       qualitative_scenarios = qual_inputs$qualitative_scenarios,
+       capabilities = qual_inputs$capabilities,
+       mappings = qual_inputs$mappings)
+}
+
+# Ruta del archivo sidecar con capacidades/controles personalizados creados
+# desde la UI (sobrevive a los imports, que sobrescriben capabilities.csv)
+custom_capabilities_path <- function(ws = evaluator_workspace()) {
+  file.path(ws$inputs_dir, "custom_capabilities.csv")
+}
+
+# Leer controles personalizados (data.frame: capability_id, capability)
+read_custom_capabilities <- function() {
+  path <- custom_capabilities_path()
+  if (!file.exists(path)) {
+    return(data.frame(capability_id = character(), capability = character(),
+                      stringsAsFactors = FALSE))
+  }
+  readr::read_csv(path, col_types = readr::cols(.default = readr::col_character()))
+}
+
+# Añadir/actualizar un control personalizado (upsert por capability_id)
+write_custom_capability <- function(capability_id, capability = "") {
+  df <- read_custom_capabilities()
+  df <- df[df$capability_id != capability_id, , drop = FALSE]
+  df <- rbind(df, data.frame(capability_id = capability_id,
+                             capability = capability,
+                             stringsAsFactors = FALSE))
+  readr::write_csv(df, custom_capabilities_path())
+  df
+}
+
+# Available capability IDs/descriptions for the UI multi-select
+get_evaluator_capabilities <- function() {
+  ws <- evaluator_workspace()
+  # La lista maestra real generada por import_spreadsheet es capabilities.csv
+  path <- file.path(ws$inputs_dir, "capabilities.csv")
+  if (!file.exists(path)) {
+    return(stats::setNames(c("CAP-01", "CAP-02", "CAP-03"),
+                           c("CAP-01 - Control placeholder", "CAP-02 - Control placeholder", "CAP-03 - Control placeholder")))
+  }
+  caps <- readr::read_csv(path, col_types = readr::cols(.default = readr::col_character()))
+  custom <- read_custom_capabilities()
+  all <- rbind(caps[, c("capability_id", "capability"), drop = FALSE],
+               custom[, c("capability_id", "capability"), drop = FALSE])
+  all <- all[!duplicated(all$capability_id), , drop = FALSE]
+  stats::setNames(all$capability_id, paste0(all$capability_id, " - ", all$capability))
+}
+
+# Compare ALE inherent (sin controles) vs residual (con controles), y atribuye
+# el ahorro marginal a cada capability mediante leave-one-out.
+run_mitigation_analysis <- function(iterations = 1e3,
+                                    qualitative_scenarios = NULL,
+                                    capabilities = NULL,
+                                    mappings = NULL,
+                                    simulation_results = NULL,
+                                    custom_diff_params = NULL,
+                                    base_dir = evaluator_workspace()$base_dir) {
+  ws <- evaluator_workspace()
+  inputs_dir <- ws$inputs_dir
+  results_dir <- ws$results_dir
+
+  if (is.null(qualitative_scenarios) || is.null(capabilities) || is.null(mappings)) {
+    domains <- readr::read_csv(file.path(inputs_dir, "domains.csv"),
+                               col_types = readr::cols(.default = readr::col_character()))
+    survey_file <- file.path(inputs_dir, "survey.xlsx")
+    evaluator::import_spreadsheet(survey_file, domains, inputs_dir)
+    qual_inputs <- evaluator::read_qualitative_inputs(inputs_dir)
+    qualitative_scenarios <- qual_inputs$qualitative_scenarios
+    capabilities <- qual_inputs$capabilities
+    mappings <- qual_inputs$mappings
+  }
+
+  # Median ALE for one encoded scenario.
+  # custom_diff_params se aplica solo si el escenario tiene controles (no en el
+  # caso inherente, donde controls = "").
+  sim_median <- function(scen_df) {
+    qs <- evaluator::encode_scenarios(scen_df, capabilities, mappings)
+    has_controls <- nzchar(trimws(paste(scen_df$controls, collapse = "")))
+    if (has_controls && !is.null(custom_diff_params) && length(custom_diff_params) > 0) {
+      qs$scenario[[1]]$parameters$diff <-
+        utils::modifyList(qs$scenario[[1]]$parameters$diff, custom_diff_params)
+    }
+    evaluator::run_simulation(qs$scenario[[1]], iterations = iterations) |>
+      dplyr::pull(.data$ale) |> stats::median()
+  }
+
+  # Inherent ALE (sin controles)
+  inherent_ale <- vapply(seq_len(nrow(qualitative_scenarios)), function(i) {
+    s <- qualitative_scenarios[i, ]
+    s$controls <- ""
+    sim_median(s)
+  }, numeric(1))
+
+  # Residual ALE: reutiliza la simulación principal si se proporciona
+  if (is.null(simulation_results)) {
+    residual_ale <- vapply(seq_len(nrow(qualitative_scenarios)), function(i) {
+      sim_median(qualitative_scenarios[i, ])
+    }, numeric(1))
+  } else {
+    residual_ale <- simulation_results |>
+      dplyr::mutate(ale = purrr::map_dbl(.data$results, ~stats::median(.x$ale))) |>
+      dplyr::pull(.data$ale)
+  }
+
+  scenario_level <- qualitative_scenarios |>
+    dplyr::select(scenario_id, scenario_description = scenario, tcomm, domain_id) |>
+    dplyr::mutate(
+      ale_inherent = inherent_ale,
+      ale_residual = residual_ale,
+      amount_saved = .data$ale_inherent - .data$ale_residual,
+      reduction_pct = ifelse(.data$ale_inherent > 0,
+                             .data$amount_saved / .data$ale_inherent, 0)
+    )
+
+  # Leave-one-out por capability
+  control_rows <- list()
+  for (i in seq_len(nrow(qualitative_scenarios))) {
+    s <- qualitative_scenarios[i, ]
+    ctrl_ids <- unique(trimws(unlist(strsplit(as.character(s$controls), ","))))
+    ctrl_ids <- ctrl_ids[nzchar(ctrl_ids)]
+    for (ci in ctrl_ids) {
+      without <- paste(setdiff(ctrl_ids, ci), collapse = ", ")
+      s2 <- s
+      s2$controls <- without
+      control_rows[[length(control_rows) + 1]] <- tibble::tibble(
+        scenario_id = s$scenario_id,
+        capability_id = ci,
+        ale_without = sim_median(s2)
+      )
+    }
+  }
+  control_sims <- dplyr::bind_rows(control_rows)
+
+  control_level <- control_sims |>
+    dplyr::left_join(
+      scenario_level |> dplyr::select(scenario_id, scenario_description, tcomm, domain_id,
+                                      ale_inherent, ale_residual),
+      by = "scenario_id"
+    ) |>
+    dplyr::mutate(
+      marginal_savings = .data$ale_without - .data$ale_residual,
+      reduction_pct = ifelse(.data$ale_without > 0,
+                             .data$marginal_savings / .data$ale_without, 0)
+    ) |>
+    dplyr::left_join(capabilities |> dplyr::select(capability_id, capability),
+                     by = "capability_id")
+
+  saveRDS(list(scenario_level = scenario_level, control_level = control_level),
+          file = file.path(results_dir, "mitigation_results.rds"))
+  readr::write_csv(scenario_level, file.path(results_dir, "mitigation_scenario_level.csv"))
+  readr::write_csv(control_level, file.path(results_dir, "mitigation_control_level.csv"))
+
+  list(scenario_level = scenario_level,
+       control_level = control_level)
 }
