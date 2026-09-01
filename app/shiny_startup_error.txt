@@ -1,0 +1,5 @@
+Startup error at 2026-08-19 18:31:58.736558
+/Users/afr0/Library/CloudStorage/OneDrive-Personal/UCM/proyecto/tfm-evaluator-app/app/capabilities_module.R:229:20: unexpected invalid token
+228:         dplyr::mutate(
+229:           Descripci√
+                        ^

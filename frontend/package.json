@@ -1,0 +1,16 @@
+{
+  "name": "tfm-evaluator-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tailwind CSS build for the OpenFAIR Shiny dashboard",
+  "scripts": {
+    "build": "tailwindcss -i ./src/input.css -o ../app/www/css/app.css --minify",
+    "watch": "tailwindcss -i ./src/input.css -o ../app/www/css/app.css --watch"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "postcss-cli": "^11.0.0",
+    "tailwindcss": "^3.4.4"
+  }
+}

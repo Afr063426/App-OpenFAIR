@@ -1,15 +1,16 @@
-domain_id, domain
-ISMP, Information Security Management Program
-AC, Access Control
-HR, Human Resources Security
-RISK, Risk Management
-POL, Security Policy
-ORG, Organization of Information Security
-COMP, Compliance
-ASSET, Asset Management
-PHY, Physical and Environmental Security
-OPS, Communications and Operations Management
-ADM,"Information Systems Acquisition, Development, and Maintenance"
-IM, Information Security Incident Management
-BC, Business Continuity Management
-PRI, Privacy Practices
+domain_id,domain
+ISMP,Programa de Gestión de Seguridad de la Información
+AC,Control de Acceso
+HR,Seguridad de Recursos Humanos
+RISK,Gestión de Riesgos
+POL,Política de Seguridad
+ORG,Organización de la Seguridad de la Información
+COMP,Cumplimiento
+ASSET,Gestión de Activos
+PHY,Seguridad Física y Ambiental
+OPS,Gestión de Comunicaciones y Operaciones
+ADM,"Adquisición, Desarrollo y Mantenimiento de Sistemas de Información"
+IM,Gestión de Incidentes de Seguridad de la Información
+BC,Gestión de Continuidad del Negocio
+PRI,Prácticas de Privacidad
+SINPE,Sistema de Pagos

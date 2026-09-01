@@ -1,0 +1,28 @@
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/package-lock.json
+
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Workspace y resultados (se montan como volumen en compose)
+app/evaluator_workspace/results/
+shiny_startup_error.txt
+
+# Control de versiones y editor
+.git/
+.gitignore
+.DS_Store
+.vscode/
+.idea/
+
+# Temporales
+*.log
+*.tmp
+*.bak
+*.swp

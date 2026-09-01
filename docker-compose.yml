@@ -1,9 +1,27 @@
 services:
-  tfm-shiny:
-    build: .
-    container_name: tfm_shiny_evaluator
+  evaluator-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tfm-evaluator:latest
+    container_name: tfm-evaluator
     ports:
-      - "3838:3838"
+      - "3838:3838"          # localhost:3838 -> Shiny Server
+    restart: unless-stopped
     volumes:
-      - ./ejemplos:/srv/shiny-server/ejemplos
-    restart: always
+      # Persistir el workspace (survey.xlsx, resultados) entre reinicios
+      - ./app/evaluator_workspace:/srv/shiny-server/evaluator_workspace
+      # Persistir los modelos de Ollama para no descargarlos en cada arranque
+      - ollama_models:/home/shiny/.ollama
+    environment:
+      - BSLIB_CACHE_DIR=/opt/bslib_cache
+      # Para activar el módulo de IA local (Ollama) sin preguntar:
+      # - ENABLE_OLLAMA=true
+      #
+      # NOTA: `docker compose up` arranca SIEMPRE en modo estándar (sin prompt)
+      # porque compose no reenvía el stdin de forma fiable. Para la pregunta
+      # interactiva usa `docker compose run --rm -p 3838:3838 evaluator-app`
+      # o `docker run -it --rm -p 3838:3838 tfm-evaluator`.
+
+volumes:
+  ollama_models:

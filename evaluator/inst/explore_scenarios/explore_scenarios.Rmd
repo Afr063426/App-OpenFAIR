@@ -1,0 +1,340 @@
+---
+title: "Risk Scenario Explorer"
+author: "Evaluator toolkit"
+output:
+  flexdashboard::flex_dashboard:
+    vertical-layout: fill
+    favicon: img/evaluator_hex_48px.png
+    logo: img/evaluator_hex_48px.png
+    navbar:
+    - align: right
+      href: https://evaluator.tidyrisk.org
+      title: About
+    orientation: columns
+    css: styles/html-styles.css
+runtime: shiny
+params:
+  input_directory: "~/evaluator/inputs"
+  results_directory: "~/evaluator/results"
+---
+
+```{r setup, include=FALSE}
+# Load packages and initialize data here
+library(scales)
+library(viridis)
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(evaluator)
+input_directory <- params$input_directory
+results_directory <- params$results_directory
+```
+
+```{r load_data, include=FALSE}
+dat <- read_quantitative_inputs(input_directory)
+simulation_results <- readRDS(file.path(results_directory, "simulation_results.rds"))
+
+scenario_summary <- summarize_scenarios(simulation_results)
+scenario_outliers <- identify_outliers(scenario_summary) %>% 
+  filter(outlier == TRUE) %>% pull(scenario_id)
+scenario_summary <- scenario_summary %>% mutate(outlier = scenario_id %in% scenario_outliers)
+
+max_loss        <- calculate_max_losses(simulation_results, scenario_outliers)
+domains         <- dat$domains
+risk_tolerances <- dat$risk_tolerances
+scenarios       <- dat$quantitative_scenarios
+
+capabilities <- purrr::map2_dfr(scenarios$control_descriptions, scenarios$domain_id, 
+                                ~tibble(capability = as_vector(.x), 
+                                        capability_id = names(.x), 
+                                        domain_id = .y)) %>% 
+  dplyr::distinct()
+```
+
+```{r helper_functions, include=FALSE}
+# determine the correct base font family to use
+basefont <- get_base_fontfamily()
+
+# given a scenario id, create a loss table
+get_loss_table <- function(sid) {
+  scenario_data <- simulation_results[simulation_results$scenario_id == sid, ][[1, "results"]]
+  loss_table <- tibble::tibble(Category = c("Loss Events / Year", "Loss Magnitude", 
+                                            "Total Loss Exposure"),
+                               Minimum = c(min(scenario_data$loss_events), 
+                                           min(scenario_data$sle_min) %>% dollar,
+                                           min(scenario_data$ale) %>% dollar),
+                               Mean = c(mean(scenario_data$loss_events, na.rm = TRUE), 
+                                        mean(scenario_data$sle_mean, na.rm = TRUE) %>% dollar,
+                                        mean(scenario_data$ale, na.rm = TRUE) %>% dollar),
+                               Mode = c(statip::mfv(scenario_data$loss_events)[1], 
+                                        statip::mfv(scenario_data$sle_median)[1] %>% as.numeric %>% dollar,
+                                        statip::mfv(scenario_data$ale)[1] %>% as.numeric %>% dollar),
+                               Maximum = c(max(scenario_data$loss_events), 
+                                           max(scenario_data$sle_max) %>% dollar,
+                                           max(scenario_data$ale) %>% dollar)
+  )
+  return(loss_table)
+}
+
+# given a scenario id, get the results dataframe
+get_scenario_results <- function(sid){
+  simulation_results %>% filter(scenario_id == sid) %>% 
+    pull(results) %>% .[[1]]
+}
+
+# given a domain_id - scenario_id syntax, get the scenario_id
+get_scenario_id <- function(x){
+  str_split(x, " - ", simplify = TRUE)[2]
+}
+
+# given a scenario id, get the scenario summary table
+get_summary_table <- function(sid) {
+  
+  summary_data <- scenario_summary %>% 
+    filter(scenario_id == sid) %>% select(-c(results, control_descriptions))
+  # add pretty formatting
+  summary_data <- mutate_at(summary_data, .funs = dollar, 
+                            .vars = vars(ale_median, ale_max, ale_var, sle_mean, 
+                            sle_median, sle_max, sle_min)) %>% 
+    mutate(mean_tc_exceedance = ifelse(is.nan(mean_tc_exceedance), 
+                                       NA, 
+                                       percent(mean_tc_exceedance))) %>% 
+    mutate(mean_vuln = percent(mean_vuln))
+  
+  names(summary_data) <- stringi::stri_trans_totitle(gsub("_", " ", names(summary_data)))
+  summary_data <- summary_data %>% mutate_all(as.character) %>% 
+    tidyr::gather(key = "Parameter", value = "Value")
+  summary_data
+}
+
+# populate the threat summary table
+get_threat_table <- reactive({
+  #filter_input <- get_threat_id(input$input_threat)
+  scenario_data <- scenarios[scenarios$scenario_id == get_scenario_id(input$input_scenario), ][[1, "scenario"]]
+  
+  threat_data <- as_tibble(scenario_data) %>% 
+    filter(openfair_factor %in% c("tef", "tc")) %>% 
+    tidyr::gather(param, value, c(min:shape)) %>% 
+    mutate(value = ifelse(openfair_factor == "tef" | param == "shape", 
+                          as.integer(value), percent(value))) %>% 
+    tidyr::spread(param, value) %>% 
+    mutate(type = ifelse(openfair_factor == "tc", "Capability", "Frequency"))
+  
+  threat_data <- threat_data %>% select(Type = openfair_factor, Low = min, 
+                                        "Most Likely" = mode,
+                                        "High" = max, Confidence = shape)
+  threat_data
+})
+
+# populate the control summary table
+get_control_table <- reactive({
+  
+  scenario_data <- scenarios[scenarios$scenario_id == 
+                               get_scenario_id(input$input_scenario), ][[1, "scenario"]]
+  
+  # add control description
+  control_data <- as_tibble(scenario_data) %>% filter(openfair_factor == "diff") %>% 
+    left_join(capabilities, by = c("id" = "capability_id"))
+                         
+  # format percentages
+  control_data <- mutate_at(control_data, vars(min, mode, max), list(percent))
+  
+  # display
+  control_data %>% select(Control = capability, 
+                          Low = min, "Most Likely" = mode, High = max, 
+                          Confidence = shape)
+  
+})
+
+# populate the loss summary table
+get_loss_distribution_table <- reactive({
+  
+  scenario_data <- scenarios[scenarios$scenario_id == 
+                               get_scenario_id(input$input_scenario), ][[1, "scenario"]]
+  
+  loss_data  <- as_tibble(scenario_data) %>% 
+    filter(openfair_factor == "lm") %>% 
+    mutate_at(vars(min, mode, max), dollar) %>% 
+    select(Low = min, "Most Likely" = mode, "High" = max, "Confidence" = shape)
+  loss_data
+})
+```
+
+All Scenarios {data-icon="fa-users" data-orientation=rows}
+=======================================================================
+
+Loss Distribution Scatterplot
+-----------------------------------------------------------------------
+
+### Loss Distributions Across All Threat Scenarios {.no-title}
+
+```{r show_all_boxplot, fig.height=4}
+shiny::renderPlot({
+  simulation_data <- simulation_results %>% unnest(results)
+  gg <- ggplot(simulation_data, aes(x = scenario_id, y = ale))
+  gg <- gg + scale_y_continuous(labels = dollar_millions)
+  gg <- gg + labs(x = "Risk Scenario", y = "Annual Loss")
+  gg <- gg + stat_boxplot(geom = 'errorbar', width = 0.5)
+  gg <- gg + geom_boxplot(fill = viridis(1), alpha = 1/3)
+  gg <- gg + facet_grid(~ domain_id, scales = "free_x", space = "free_x", 
+                        switch = "x")
+  gg <- gg + theme_evaluator(base_family = basefont)
+  gg <- gg + theme(panel.grid.major = element_blank())
+  gg <- gg + theme(panel.grid.minor = element_blank())
+  print(gg)
+})
+```
+
+All Scenarios Data Table
+-----------------------------------------------------------------------
+
+### All Risk Scenarios
+
+```{r show_all_table}
+DT::renderDataTable({
+  summary_data <- scenario_summary
+  dat <- mutate_at(summary_data, .funs = scales::dollar, 
+                   .vars = vars(starts_with("ale"), starts_with("sle"))) %>% 
+    mutate(loss_events_mean = comma(loss_events_mean)) %>% 
+    mutate(mean_tc_exceedance = percent(mean_tc_exceedance)) %>% 
+    mutate(mean_vuln = percent(mean_vuln)) %>% 
+    select(-c(control_descriptions, results))
+  names(dat) <- names(dat) %>% stringr::str_replace("_", " ") %>% 
+    stringi::stri_trans_totitle()
+  DT::datatable(dat, rownames = FALSE,
+                options = list( 
+                  scrollX = TRUE,
+                  sScrollY = "300px",
+                  fixedColumns = list(leftColumns = 2)), 
+                extensions = c("Scroller", "FixedColumns"))
+})
+```
+
+Individual Risk Scenarios {data-icon="fa-user"}
+=======================================================================
+
+
+Input Sidebar {.sidebar data-width=500}
+-----------------------------------------------------------------------
+Select a specific risk scenario for detailed analysis.
+
+```{r inputs}
+scenario_input <- paste(scenario_summary$domain_id, "-",
+                        scenario_summary$scenario_id)
+selectInput("input_scenario", "Risk Scenario", scenario_input)
+```
+
+### Scenario Description
+```{r scenario_details}
+shiny::renderText({
+  scenarios[scenarios$scenario_id == get_scenario_id(input$input_scenario), 
+                "scenario_description"][[1]]
+})
+```
+
+
+#### Threat Profile
+
+```{r threat_profile}
+shiny::renderText({
+  paste("Community:", scenarios[scenarios$scenario_id == get_scenario_id(input$input_scenario),
+                               "tcomm"])
+})
+renderTable({
+  get_threat_table()
+}, include.rownames = FALSE, width = 500)
+```
+
+#### Controls
+
+```{r controls}
+shiny::renderTable({
+  get_control_table()
+}, include.rownames = FALSE, width = 500)
+```
+
+#### Loss Magnitude
+
+```{r loss_magnitude}
+shiny::renderTable({
+  get_loss_distribution_table()
+}, include.rownames = FALSE, width = 500)
+```
+
+> Simulation data generated on `r format(map(simulation_results$results, ~attr(.x, "generated_on")) %>% purrr::reduce(max), "%F %H:%M:%S%z")`
+
+Main Display {data-width=450}
+-----------------------------------------------------------------------
+
+### Loss Scatterplot
+
+```{r show_scatterplot}
+shiny::renderPlot({
+  
+  # get scenario_id via input$bins from ui.R
+  scenario_id <- get_scenario_id(input$input_scenario)
+  
+  # draw the scatterplot for this threat scenario
+  filter(simulation_results, scenario_id == scenario_id) %>% 
+    unnest(results) %>% loss_scatterplot()
+})
+```
+
+### Value at Risk
+
+```{r var_values}
+flexdashboard::renderValueBox({
+  scenario_data <- simulation_results %>% unnest(results) %>% 
+    filter(scenario_id == get_scenario_id(input$input_scenario))
+  
+  dat <- quantile(scenario_data$ale, 0.95, na.rm = TRUE)
+  if (is.na(dat)) dat <- 0
+  flexdashboard::valueBox(dollar(dat),
+           caption = "Value at Risk", icon = "fa-pencil", 
+           color = case_when(
+             dat >= risk_tolerances[risk_tolerances$level == "high", ]$amount ~ "danger",
+             dat >= risk_tolerances[risk_tolerances$level == "medium", ]$amount ~ "warning", 
+             TRUE ~ "success")
+           )
+})
+```
+
+### Vulnerability
+
+```{r vuln_value}
+flexdashboard::renderValueBox({
+  sid <- get_scenario_id(input$input_scenario)
+  dat <- scenario_summary %>% 
+    filter(scenario_id == sid) %>% pull(mean_vuln)
+  if (is.na(dat)) dat <- 0
+  flexdashboard::valueBox(percent(dat),
+           caption = "Vulnerability", icon = "ion-nuclear",
+           color = ifelse(dat >= .75, "danger", ifelse(
+             dat >= .50, "warning", "success")))
+})
+```
+
+Detailed Display {data-width=350}
+-----------------------------------------------------------------------
+
+### Summary Data
+
+```{r show_summary}
+summary_table <- reactive({ 
+  scenario_id <- get_scenario_id(input$input_scenario)
+  get_summary_table(scenario_id)
+})
+
+shiny::renderTable({summary_table()}, include.rownames = FALSE)
+```
+
+### Loss Table
+
+```{r show_loss_table}
+loss_table <- reactive({
+  scenario_id <- get_scenario_id(input$input_scenario)
+  get_loss_table(scenario_id)
+})
+
+shiny::renderTable({loss_table()}, include.rownames = FALSE)
+```

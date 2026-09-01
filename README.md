@@ -1,31 +1,55 @@
-# Aplicación Shiny para Análisis Cuantitativo de Riesgos (TFM)
+# Evaluador Cuantitativo de Riesgos — OpenFAIR
 
-Esta aplicación permite ajustar distribuciones de probabilidad de pérdida a partir de datos históricos en Excel y correr simulaciones Monte Carlo mediante la metodología Open FAIR™ utilizando el paquete `evaluator`.
+Dashboard Shiny para análisis cuantitativo de riesgo (ALE, curvas de excedencia,
+efectividad de controles) basado en el paquete `evaluator` (OpenFAIR).
+UI moderna: bslib + Tailwind CSS (dark mode elegante, tarjetas KPI con formato
+compacto K/M/B).
 
-## 🚀 Instrucciones de Ejecución (Para Evaluadores / Profesores)
+## Estructura
 
-**No requiere tener R ni RStudio instalado.** Solo necesita tener instalado [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+```
+app/            Aplicación Shiny (global.R + ui.R + server.R + helpers)
+frontend/       Fuente Tailwind CSS (npm run build -> app/www/css/app.css)
+evaluator/      Fork local del paquete evaluator (OpenFAIR)
+Dockerfile      Compilación multi-etapa (Node -> Tailwind, R -> Shiny Server)
+docker-compose.yml
+```
 
-### Pasos:
+## Ejecución local (sin Docker)
 
-1. Descomprima este archivo `.zip` en cualquier carpeta de su equipo.
-2. Inicie **Docker Desktop** en su equipo.
-3. Abre una terminal o consola de comandos en la carpeta descomprimida.
-4. Ejecute el siguiente comando:
+Requisitos: R >= 4.3 y las librerías de `global.R`. Compila los estilos:
 
-   ```bash
-   docker-compose up --build
-   ```
+```bash
+cd frontend && npm install && npm run build && cd ..
+```
 
-5. Una vez que finalice la carga, abra su navegador web e ingrese a:
-   
-   **`http://localhost:3838`**
+Lanza la app desde R:
 
-6. Para detener la aplicación, presione `Ctrl + C` en la terminal o ejecute:
+```r
+shiny::runApp("app")
+```
 
-   ```bash
-   docker-compose down
-   ```
+## Ejecución con Docker
 
----
-*Nota: Compatible con Windows, macOS (Intel y Apple Silicon M1/M2/M3/M4) y Linux.*
+### Opción A — docker compose (recomendada)
+
+```bash
+docker compose up --build
+# Abrir http://localhost:3838
+```
+
+### Opción B — docker build + run
+
+```bash
+docker build -t tfm-evaluator .
+docker run --rm -p 3838:3838 -v "$(pwd)/app/evaluator_workspace:/srv/shiny-server/evaluator_workspace" tfm-evaluator
+# Abrir http://localhost:3838
+```
+
+El build multi-etapa:
+1. `node:20-alpine` instala dependencias npm y compila Tailwind CSS.
+2. `rocker/shiny:4.3.1` instala paquetes R (`bslib`, `plotly`, `DT`, `bsicons`,
+   `pscl`, fork local `evaluator`, etc.) y copia la app con el CSS compilado.
+
+El workspace (`survey.xlsx`, resultados) se monta como volumen para persistir
+entre reinicios.

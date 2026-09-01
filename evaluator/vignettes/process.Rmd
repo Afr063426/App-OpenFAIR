@@ -1,0 +1,64 @@
+---
+title: "An Evaluator-driven Risk Management Process"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{An Evaluator-driven Risk Management Process}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+Working notes for building a risk assessment process using the Evaluator 
+toolkit. This vignette details the basic flow used at some organizations to 
+maintain reproducability of inputs and results. While other technologies and 
+solutions may be employed, this workflow is intended to be easy to implement 
+for users familiar with source control principles.
+
+## Starting from Scratch
+
+- Create a starting Evaluator working directory via `create_templates()`
+- Customize the domains used in your organization by editing the `domains.csv` 
+file to include the domains (and their abbreviations) which are appropriate for your 
+risk domain and organization.
+- Edit the `survey.xlsx` spreadsheet to include the risk scenarios and the threats 
+for each scenario which you wish to monitor on an ongoing basis.
+- Create a source code repository (such as a GitHub for Enterprise repo) for 
+your ongoing risk analysis work.
+- Add a tag to designate the just committed files (without analysis) as your reference 
+documentation.
+
+## Performing an Analysis
+- Meet with subject matter experts for each domain and walk through each 
+scenario and threat source.
+- Record answers in the survey.xlsx spreadsheet.
+- Run the analysis as detailed in the [usage](usage.html) vignette.
+- Commit the inputs and results to your source code repository.
+- Add a tag to reflect the state as of a certain point in time (i.e. FY18 Q1)
+
+## What to Store
+
+If using the sample workflow, you will have two subdirectories located under 
+a parent `evaluator` directory in your home folder. `inputs` contains the 
+qualitative scenarios and input data files, while `results` stores the 
+simulation results, including the summarized data files. Both directories 
+together represent an analysis snapshot.
+
+## Quick Start Script
+
+When using `create_templates()` a `run_analysis.R` file will be placed at the base 
+of the `evaluator` directory. A sample ultra-quick workflow looks like:
+
+1. Run `evaluator::create_templates("~/evaluator")`
+2. Edit the inputs for your situation.
+3. Run the quick start script with code like the following:
+
+```{r eval=FALSE}
+base_dir <- "~/evaluator"
+source("~/evaluator/run_analysis.R")
+```

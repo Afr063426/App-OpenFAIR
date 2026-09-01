@@ -1,0 +1,61 @@
+capability_id,capability_es,descripcion_es
+CAP-01,Comité Directivo de Seguridad y Privacidad,"La alta dirección supervisa formalmente la seguridad y privacidad, garantizando rendición de cuentas."
+CAP-02,Marco de Seguridad de la Información,Un marco formal guía la implementación del programa de seguridad de la información.
+CAP-03,Autoridad Delegada para Incidentes,Existen roles con autoridad delegada para responder rápidamente ante incidentes.
+CAP-04,Personal de Seguridad Capacitado,El programa cuenta con profesionales de seguridad capacitados que ejecutan las actividades de protección.
+CAP-05,Coordinación de Seguridad Interdepartamental,Las áreas coordinan sus actividades de seguridad para evitar vacíos de cobertura.
+CAP-06,Roles de Seguridad Definidos,Cada puesto de seguridad tiene roles y responsabilidades claramente documentados.
+CAP-07,Estrategia de Seguridad de la Dirección,La alta dirección define y respalda la estrategia y dirección del programa de seguridad.
+CAP-08,Cumplimiento de Seguridad y Privacidad,El programa apoya el cumplimiento normativo y los requisitos de negocio en seguridad y privacidad.
+CAP-09,Defensoría de Políticas de Seguridad,Un grupo designado atiende disputas y quejas sobre las políticas y estándares de seguridad.
+CAP-10,Monitoreo de Tendencias Regulatorias,Se vigilan autoridades externas y tendencias de la industria para anticipar cambios en políticas.
+CAP-11,Gestión de Incumplimientos de Política,"Los incumplimientos de política se documentan, reconocen y revisan periódicamente."
+CAP-12,Políticas de Seguridad Alineadas al Negocio,"Las políticas de seguridad se definen, implementan y mantienen alineadas a las leyes y al negocio."
+CAP-13,Auditoría de Cumplimiento en Sistemas Críticos,El cumplimiento de seguridad en sistemas y redes críticos se revisa periódicamente.
+CAP-14,Autoevaluación del Programa de Seguridad,La efectividad del programa se autoevalúa y reporta periódicamente a la dirección.
+CAP-15,Verificación Periódica de Controles,Se verifica periódicamente que los controles de seguridad sean razonables y apropiados.
+CAP-16,Verificación de Controles de Terceros,Se verifican los controles de terceros que acceden a información confidencial.
+CAP-17,Gestión de Riesgos de Acceso a la Información,Un programa de identificación y tratamiento de riesgos protege el acceso y uso de información confidencial.
+CAP-18,Aceptación de Riesgos Residuales,Los dueños del riesgo reconocen formalmente los resultados de las evaluaciones y los riesgos residuales.
+CAP-19,Evaluación de Riesgos en Sistemas Críticos,"Se evalúan periódicamente los riesgos de todas las aplicaciones, sistemas y redes críticas."
+CAP-20,Reporte de Riesgos a la Dirección,Las condiciones de riesgo del programa se reportan a la alta dirección para su decisión.
+CAP-21,Política de Privacidad en Línea,La política de privacidad en línea y los términos de uso están definidos y mantenidos.
+CAP-22,Controles de Privacidad,Se definen e implementan controles y responsabilidades para la privacidad de la información.
+CAP-23,Minimización y Retención de Datos,"La información confidencial se limita al mínimo necesario, se anonimiza y se elimina cuando ya no es necesaria."
+CAP-24,Programa de Privacidad Coordinado,El programa de privacidad se define e implementa en cooperación con el Oficial de Privacidad.
+CAP-25,Gestión de Incidentes,Existe un proceso formal para gestionar incidentes de seguridad de la información.
+CAP-26,Red de Expertos en Incidentes,"Se mantienen relaciones con terceros, expertos y grupos de investigación de incidentes."
+CAP-27,Investigación Forense,Existen capacidades forenses para investigar incidentes y preservar evidencia.
+CAP-28,Respuesta y Documentación de Incidentes,"Los incidentes se identifican, responden, mitigan y documentan de manera formal."
+CAP-29,Colaboración Comunitaria,La organización colabora con otras organizaciones y su comunidad para fortalecer la seguridad.
+CAP-30,Concientización en Seguridad,El personal recibe un programa de concientización y educación en seguridad y privacidad.
+CAP-31,Educación en Políticas de Seguridad,Se revisan y comunican las políticas de seguridad y las responsabilidades de cada empleado.
+CAP-32,Inteligencia de Amenazas Activa,Un programa de inteligencia recopila y analiza información sobre amenazas de forma continua.
+CAP-33,Medición de Actividad de Sistemas,"Se establecen mediciones de referencia de la actividad de aplicaciones, sistemas y redes."
+CAP-34,Detección de Intrusiones (IDS),Existe un mecanismo formal de detección de intrusiones en la red.
+CAP-35,Registro de Actividad (Logging),"Se registra la actividad de redes, sistemas y aplicaciones para auditoría e investigación."
+CAP-36,Monitoreo de Sistemas Críticos,Los sistemas críticos se monitorean de forma continua para detectar anomalías.
+CAP-37,Gestión de Cambios y Configuración,Los cambios en sistemas y configuración se controlan mediante un proceso formal.
+CAP-38,Gestión de Vulnerabilidades,Las vulnerabilidades y fallas de software se remedian mediante un proceso formal.
+CAP-39,Manejo y Destrucción de Medios,"Los medios y dispositivos se manejan, destruyen o desechan de forma segura al final de su vida útil."
+CAP-40,Política de Uso Aceptable,Existe una política de uso aceptable de los recursos tecnológicos de la organización.
+CAP-41,Continuidad del Negocio (BCP/DRP),Existen planes de continuidad del negocio y recuperación ante desastres probados y mantenidos.
+CAP-42,Estándares de Construcción de Sistemas,"Los estándares de construcción, mantenimiento y configuración de hardware y software están definidos."
+CAP-43,Arquitectura Técnica de Seguridad,La arquitectura técnica de seguridad y privacidad sigue estándares definidos.
+CAP-44,Desarrollo Seguro de Aplicaciones (SDLC),Las aplicaciones se desarrollan siguiendo un ciclo de vida de desarrollo seguro.
+CAP-45,Respaldo de Información Crítica,La información y el software críticos se respaldan de forma sistemática y periódica.
+CAP-46,Cifrado de Datos en Reposo y en Tránsito,Los datos sensibles se protegen con cifrado en reposo y en tránsito según estándares definidos.
+CAP-47,Gestión de Acceso Remoto,El acceso remoto y externo a los sistemas se gestiona mediante un proceso formal.
+CAP-48,Autorización de Acceso,El acceso de usuarios y sistemas se autoriza mediante un proceso formal y documentado.
+CAP-49,Autenticación Multi-Factor (MFA),"Todos los usuarios y sistemas se autentican con mecanismos robustos, incluyendo MFA cuando aplica."
+CAP-50,Segmentación de Red,"Las redes, sistemas y aplicaciones se protegen mediante segmentación y controles de red."
+CAP-51,Eliminación Segura de Datos,Los datos se destruyen o eliminan de forma segura cuando ya no son necesarios.
+CAP-52,Control de Acceso Físico,El acceso físico a los edificios que alojan infraestructura crítica se controla y registra.
+CAP-53,Protección Física de Instalaciones,Las instalaciones que alojan infraestructura crítica cuentan con protección física adecuada.
+CAP-54,Protección Física de Sistemas Críticos,Los sistemas críticos y la información institucional cuentan con protección física.
+CAP-55,Plan de Seguridad Física,Existe un plan formal de seguridad física para las instalaciones de TI.
+CAP-56,Inventario y Clasificación de la Información,"La información y los sistemas se identifican, inventarían, clasifican y asignan a un propietario."
+CAP-57,Verificación de Identidad,La identidad de usuarios y sistemas se verifica y registra antes de otorgar acceso.
+CAP-58,Ciclo de Vida de Cuentas,Las cuentas de usuario y sistema se gestionan a lo largo de todo su ciclo de vida.
+CAP-59,Retención Legal (Litigation Hold),Existe un proceso para preservar información ante requerimientos legales (litigation hold).
+CAP-60,Comunicación de Responsabilidades de Seguridad,"Las responsabilidades de seguridad del personal se definen, comunican y verifican."

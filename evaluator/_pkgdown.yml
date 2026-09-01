@@ -1,0 +1,86 @@
+url: https://evaluator.tidyrisk.org
+
+template:
+  params:
+    bootswatch: flatly
+    ganalytics: UA-87348339-3
+
+navbar:
+  left:
+    - icon: fa-home fa-lg
+      href: index.html
+    - text: "Geting Started"
+      href: articles/usage.html
+    - text: "Reference"
+      href: reference/index.html
+    - text: "Articles"
+      menu:
+        - text: "Advanced Customization"
+          href: articles/customization.html
+        - text: "Process"
+          href: articles/process.html
+    - text: Presentations
+      menu:
+        - text: "Tidyrisk Training Workshop"
+          href: https://www.slideshare.net/davidski1/tidyrisk-workshop
+        - text: "SiRAcon 2018"
+          href: https://www.slideshare.net/davidski1/evaluator-siracon-2018-presentation
+    - text: "News"
+      href: news/index.html
+  right:
+    - icon: fa-github fa-lg fab
+      text: "github"
+      href: https://github.com/davidski/evaluator/
+
+reference:
+  - title: Evaluator
+    contents:
+      - evaluator
+  - title: Data Import and Cleansing Functions
+    contents:
+      - create_templates
+      - derive_controls
+      - encode_scenarios
+      - starts_with("import")
+      - read_qualitative_inputs
+      - read_quantitative_inputs
+      - openfair_example
+      - split_sheet
+      - validate_scenarios
+  - title: Modelling Functions
+    desc: OpenFAIR modelling components
+    contents:
+      - compare_tef_vuln
+      - get_mean_control_strength
+      - starts_with("openfair_")
+      - run_simulation
+      - run_simulations
+      - starts_with("sample")
+      - select_loss_opportunities
+  - title: Reporting Functions
+    contents:
+      - starts_with("calculate")
+      - derive_control_key
+      - dollar_millions
+      - explore_scenarios
+      - exposure_histogram
+      - starts_with("generate")
+      - get_base_fontfamily
+      - identify_outliers
+      - loss_exceedance_curve
+      - loss_scatterplot
+      - risk_dashboard
+      - theme_evaluator
+  - title: Sample Data Set
+    desc: Demonstration data set for the hypothetical MetroCare Hospital
+    contents:
+      - starts_with("mc_")
+  - title: Summarization Functions
+    contents:
+      - starts_with("summarize")
+  - title: Tidyrisk Scenario Class Functions
+    contents:
+      - contains("tidyrisk_scenario")
+  - title: Tidyrisk Factor Class Functions
+    contents:
+      - contains("tidyrisk_factor")

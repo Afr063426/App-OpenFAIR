@@ -1,61 +1,61 @@
 capability_id,domain_id,capability,diff
-CAP-01,ORG,A senior-level committee provides dedicated oversight for privacy and information security activities.,5 - Optimized
-CAP-02,ISMP,An information security framework is established to guide the implementation of the information security program.,2 - Repeatable
-CAP-03,ORG,Delegated authority is established for incident response.,2 - Repeatable
-CAP-04,ISMP,Information security activities are supported by trained information security professionals.,2 - Repeatable
-CAP-05,ORG,Information security activities between departments are coordinated.,4 - Managed
-CAP-06,ISMP,Roles and responsibilities are established and clearly defined for all information security positions.,3 - Defined
-CAP-07,ORG,Senior management's strategy and direction for the information security program is established and commitment is demonstrated.,1 - Initial
-CAP-08,COMP,"The information security program supports the privacy and information security compliance efforts, and business requirements.",2 - Repeatable
-CAP-09,POL,A designated group is set up to act as ombudsman for disputes and complaints regarding enterprise wide information security policies and standards.,2 - Repeatable
-CAP-10,POL,External authorities and industry trends are monitored for potential policy implications.,5 - Optimized
-CAP-11,POL,"Policy compliance issues are documented, acknowledged, and periodically reviewed.",2 - Repeatable
-CAP-12,POL,"The information security policies are defined, implemented, maintained, and support the business requirements and relevant regulations and laws.",2 - Repeatable
-CAP-13,COMP,Security compliance for all critical systems and networks is reviewed on a periodic basis.,5 - Optimized
-CAP-14,ORG,"Self-assessment of the information security program operations, activities, and strategic plan effectiveness is completed and reported on a periodic basis.",4 - Managed
-CAP-15,ORG,Verification of reasonable and appropriate information security controls are completed on a periodic basis.,2 - Repeatable
-CAP-16,ORG,Verification of reasonable and appropriate information security controls from third parties that have access to confidential information is completed on a periodic basis.,2 - Repeatable
-CAP-17,RISK,"An appropriate risk identification and treatment program related to the access and use of confidential information is defined, implemented, and maintained.",2 - Repeatable
-CAP-18,RISK,"Results of risk assessments, including any residual risks exposures, are acknowledged by the risk owners.",3 - Defined
-CAP-19,RISK,"Risk assessments are completed on all critical applications, systems, and networks on a periodic basis.",5 - Optimized
-CAP-20,RISK,Summary risk conditions of the enterprise information security program are provided to senior management.,5 - Optimized
-CAP-21,PRI,"Online privacy policy and terms of use statements are defined, implemented, and maintained.",2 - Repeatable
-CAP-22,PRI,"Security controls and responsibility for information privacy are defined, implemented, and maintained.",1 - Initial
-CAP-23,PRI,"Storage and transmission of confidential information is limited to minimum necessary, de-identified when possible, and deleted when no longer needed.",5 - Optimized
-CAP-24,PRI,"The privacy program and policies are defined, implemented, and maintained in cooperation with the Privacy Officer and support the business requirements and relevant regulations and laws.",5 - Optimized
-CAP-25,IM,"An incident management process is defined, implemented, and maintained.",1 - Initial
-CAP-26,IM,"Working relationships are established with third party contracted services, counter-intelligence experts, regional organizations, and researchers working in the field of incident response.",1 - Initial
-CAP-27,IM,Forensic investigation capabilities are established and available for incident response.,4 - Managed
-CAP-28,IM,"Information security incidents are identified, responded to, mitigated, and documented.",4 - Managed
-CAP-29,HR,Provide community outreach and collaborate with other organizations.,2 - Repeatable
-CAP-30,HR,Provide content and support for an information security and privacy awareness and education program for workforce members.,3 - Defined
-CAP-31,HR,"Provide content review and support education efforts for all associated information security policies, including employee roles and responsibilities.",1 - Initial
-CAP-32,ORG,"An active intelligence gathering program is defined, implemented, and maintained.",4 - Managed
-CAP-33,OPS,"Baseline measurement processes for application, system, and network activity are defined, implemented, and maintained.",3 - Defined
-CAP-34,OPS,"Intrusion detection mechanism is defined, implemented, and maintained.",1 - Initial
-CAP-35,OPS,"Logging process of network, systems, and applications is defined, implemented, and maintained.",1 - Initial
-CAP-36,OPS,"Monitoring capability of critical systems is defined, implemented, and maintained.",1 - Initial
-CAP-37,OPS,"A change and configuration management process is defined, implemented, and maintained.",3 - Defined
-CAP-38,ADM,"A flaw remediation process is defined, implemented, and maintained.",3 - Defined
-CAP-39,ASSET,"A media & device handling and destruction process is defined, implemented, and maintained.",1 - Initial
-CAP-40,OPS,"An acceptable use standard is defined, implemented, and maintained.",1 - Initial
-CAP-41,BC,"Business disaster recovery and continuity plans are defined, implemented, and maintained.",5 - Optimized
-CAP-42,OPS,"Institutional hardware, software, system build, and maintenance standards are defined, implemented, and maintained.",2 - Repeatable
-CAP-43,OPS,"Privacy and information security technical architecture standards are defined, implemented, and maintained.",1 - Initial
-CAP-44,ADM,"Secure application development life cycle or system development life cycle process is defined, implemented, and maintained.",5 - Optimized
-CAP-45,BC,"Systematic backup process for critical information and software is defined, implemented, and maintained.",3 - Defined
-CAP-46,OPS,"A cryptographic process and data protection standard is defined, implemented, and maintained.",2 - Repeatable
-CAP-47,OPS,"A remote and external access process is defined, implemented, and maintained.",2 - Repeatable
-CAP-48,OPS,"An access authorization process for all authorized users and information systems is defined, implemented, and maintained.",4 - Managed
-CAP-49,OPS,"An authentication mechanism for all authorized users and information systems is defined, implemented, and maintained.",5 - Optimized
-CAP-50,OPS,"Network, system, and application level protection measures are defined, implemented, and maintained.",3 - Defined
-CAP-51,OPS,"A data destruction or disposal process is defined, implemented, and maintained.",5 - Optimized
-CAP-52,PHY,"Physical access process for buildings that house critical IT facilities is defined, implemented, and maintained.",3 - Defined
-CAP-53,PHY,"Physical protection process for buildings that house critical IT facilities is defined, implemented, and maintained.",3 - Defined
-CAP-54,PHY,"Physical protection process for critical information systems and institutional information is defined, implemented, and maintained.",5 - Optimized
-CAP-55,PHY,"The physical security plan is defined, implemented, and maintained.",1 - Initial
-CAP-56,ASSET,"A process to identify, inventory, assign ownership, and classify institutional information and information systems is defined, implemented, and maintained.",1 - Initial
-CAP-57,AC,"An identity and eligibility verification and registration process is defined, implemented, and maintained.",2 - Repeatable
-CAP-58,AC,"An user and system account life cycle management process is defined, implemented, and maintained.",3 - Defined
-CAP-59,IM,A process exists and is implemented for performing litigation holds.,5 - Optimized
-CAP-60,HR,Ensure workforce member security responsibilities are defined acording to security policy and communicated.,2 - Repeatable
+CAP-01,ORG,Comité directivo de supervisión de privacidad y seguridad de la información,5 - Optimizado
+CAP-02,ISMP,Marco de seguridad de la información institucional,2 - Repetible
+CAP-03,ORG,Autoridad delegada para la respuesta a incidentes,2 - Repetible
+CAP-04,ISMP,Personal de seguridad de la información capacitado,2 - Repetible
+CAP-05,ORG,Coordinación de actividades de seguridad entre departamentos,4 - Gestionado
+CAP-06,ISMP,Roles y responsabilidades de seguridad claramente definidos,3 - Definido
+CAP-07,ORG,Estrategia y compromiso de la alta dirección en seguridad,1 - Inicial
+CAP-08,COMP,Cumplimiento de requisitos de negocio y privacidad,2 - Repetible
+CAP-09,POL,Defensoría de disputas y quejas sobre políticas de seguridad,2 - Repetible
+CAP-10,POL,Monitoreo de autoridades externas y tendencias de la industria,5 - Optimizado
+CAP-11,POL,Documentación y revisión de incumplimientos de políticas,2 - Repetible
+CAP-12,POL,Políticas de seguridad alineadas a requisitos de negocio y legales,2 - Repetible
+CAP-13,COMP,Revisión periódica del cumplimiento en sistemas críticos,5 - Optimizado
+CAP-14,ORG,Autoevaluación periódica del programa de seguridad,4 - Gestionado
+CAP-15,ORG,Verificación periódica de los controles de seguridad,2 - Repetible
+CAP-16,ORG,Verificación de controles de terceros con acceso a información confidencial,2 - Repetible
+CAP-17,RISK,Programa de identificación y tratamiento de riesgos,2 - Repetible
+CAP-18,RISK,Aceptación de riesgos residuales por los propietarios del riesgo,3 - Definido
+CAP-19,RISK,"Evaluaciones de riesgo en aplicaciones, sistemas y redes críticas",5 - Optimizado
+CAP-20,RISK,Reporte de condiciones de riesgo a la alta dirección,5 - Optimizado
+CAP-21,PRI,Política de privacidad en línea y términos de uso,2 - Repetible
+CAP-22,PRI,Controles de seguridad y responsabilidad de la privacidad,1 - Inicial
+CAP-23,PRI,"Minimización, anonimización y eliminación de información confidencial",5 - Optimizado
+CAP-24,PRI,Programa de privacidad coordinado con el Oficial de Privacidad,5 - Optimizado
+CAP-25,IM,Proceso de gestión de incidentes,1 - Inicial
+CAP-26,IM,Relaciones con terceros y expertos en respuesta a incidentes,1 - Inicial
+CAP-27,IM,Capacidades de investigación forense,4 - Gestionado
+CAP-28,IM,"Identificación, respuesta, mitigación y documentación de incidentes",4 - Gestionado
+CAP-29,HR,Divulgación comunitaria y colaboración con otras organizaciones,2 - Repetible
+CAP-30,HR,Programa de concientización y educación en seguridad y privacidad,3 - Definido
+CAP-31,HR,Revisión de contenido y educación en políticas de seguridad,1 - Inicial
+CAP-32,ORG,Programa de inteligencia activa,4 - Gestionado
+CAP-33,OPS,"Medición de referencia de actividad en aplicaciones, sistemas y redes",3 - Definido
+CAP-34,OPS,Detección de intrusiones,1 - Inicial
+CAP-35,OPS,"Registro de actividad de redes, sistemas y aplicaciones",1 - Inicial
+CAP-36,OPS,Monitoreo de sistemas críticos,1 - Inicial
+CAP-37,OPS,Gestión de cambios y configuración,3 - Definido
+CAP-38,ADM,Gestión de vulnerabilidades y remediación de fallas,3 - Definido
+CAP-39,ASSET,Manejo y destrucción de medios y dispositivos,1 - Inicial
+CAP-40,OPS,Estándar de uso aceptable,1 - Inicial
+CAP-41,BC,Planes de continuidad del negocio y recuperación ante desastres,5 - Optimizado
+CAP-42,OPS,Estándares de construcción y mantenimiento de hardware y software,2 - Repetible
+CAP-43,OPS,Estándares de arquitectura técnica de seguridad y privacidad,1 - Inicial
+CAP-44,ADM,Ciclo de vida de desarrollo seguro de aplicaciones,5 - Optimizado
+CAP-45,BC,Proceso sistemático de respaldo de información crítica,3 - Definido
+CAP-46,OPS,Cifrado y protección de datos en tránsito y en reposo,2 - Repetible
+CAP-47,OPS,Gestión de acceso remoto y externo,2 - Repetible
+CAP-48,OPS,Proceso de autorización de acceso de usuarios y sistemas,4 - Gestionado
+CAP-49,OPS,Autenticación de usuarios y sistemas (incluye MFA),5 - Optimizado
+CAP-50,OPS,"Segmentación y protección de red, sistemas y aplicaciones",3 - Definido
+CAP-51,OPS,Proceso de destrucción o eliminación segura de datos,5 - Optimizado
+CAP-52,PHY,Control de acceso físico a instalaciones críticas,3 - Definido
+CAP-53,PHY,Protección física de instalaciones críticas,3 - Definido
+CAP-54,PHY,Protección física de sistemas críticos e información institucional,5 - Optimizado
+CAP-55,PHY,Plan de seguridad física,1 - Inicial
+CAP-56,ASSET,"Inventario, clasificación y propiedad de la información",1 - Inicial
+CAP-57,AC,Verificación de identidad y registro de usuarios,2 - Repetible
+CAP-58,AC,Gestión del ciclo de vida de cuentas de usuario y sistema,3 - Definido
+CAP-59,IM,Proceso de retención legal de información,5 - Optimizado
+CAP-60,HR,Comunicación de responsabilidades de seguridad al personal,2 - Repetible
