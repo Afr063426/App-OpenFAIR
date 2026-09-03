@@ -1180,9 +1180,12 @@ server <- function(input, output, session) {
 
   # --- Optimización de controles por escenario (mochila / ROSI) ---------------
   optimization_results <- reactiveVal(NULL)
+  # Diagnóstico visible de la optimización (qué costos se detectaron).
+  opt_diag <- reactiveVal(list(detectados = 0L, hay_positivos = FALSE, txt = ""))
 
   observeEvent(input$btn_run_opt, {
     optimization_results(NULL)
+    opt_diag(list(detectados = 0L, hay_positivos = FALSE, txt = ""))
     req(analysis_results())
     req(nrow(analysis_results()$scenario_summary) > 0)
     req(mitigation_results())
@@ -1194,18 +1197,23 @@ server <- function(input, output, session) {
       # del escenario carecen de costo. Ayuda a entender el "todo en 0".
       if (length(costs) == 0) {
         n_controles <- length(unique(mitigation_results()$control_level$capability_id))
-        analysis_message(sprintf(
-          "NO se detectaron costos (%d controles en mitigación sin costo definido). Importa un custom_capabilities.csv con la columna 'cost' o configura costos en el módulo Controles de Seguridad.", n_controles))
+        diag_txt <- sprintf(
+          "NO se detectaron costos (%d controles en mitigación sin costo definido). Importa un custom_capabilities.csv con la columna 'cost' o configura costos en el módulo Controles de Seguridad.",
+          n_controles)
+        opt_diag(list(detectados = 0L, hay_positivos = FALSE, txt = diag_txt))
+        analysis_message(diag_txt)
         return()
       }
       txt_costos <- paste(sprintf("%s=$%s", names(costs), fmt_compact_money(unname(costs))), collapse = ", ")
-      if (length(costs) <= 8) {
-        analysis_message(sprintf("Optimización con %d costos detectados: %s.",
-                                 length(costs), txt_costos))
+      diag_txt <- if (length(costs) <= 8) {
+        sprintf("Costos detectados (%d): %s.", length(costs), txt_costos)
       } else {
-        analysis_message(sprintf("Optimización con %d costos detectados (primeros: %s).",
-                                 length(costs), txt_costos))
+        sprintf("Costos detectados (%d): %s, ...", length(costs), txt_costos)
       }
+      opt_diag(list(detectados = length(costs),
+                    hay_positivos = any(costs > 0, na.rm = TRUE),
+                    txt = diag_txt))
+      analysis_message(diag_txt)
       cl <- mitigation_results()$control_level
       if (identical(mode, "global")) {
         # Presupuesto GLOBAL: reparte el monto entre todos los escenarios (MCKP)
@@ -1238,12 +1246,21 @@ server <- function(input, output, session) {
 
   output$opt_message <- renderText({
     opt <- optimization_results()
+    diag <- opt_diag()
     if (is.null(opt)) {
       "Ejecuta primero 'Ejecutar análisis' y 'Ejecutar análisis de mitigación', define los costos de los controles y pulsa 'Ejecutar optimización'."
     } else if (nrow(opt$by_scenario) == 0) {
-      "No hay escenarios con controles costeados para optimizar. Configura controles con costo en el módulo Controles de Seguridad."
+      if (is.null(diag$txt) || !nzchar(diag$txt)) {
+        "No hay escenarios con controles costeados para optimizar. Configura controles con costo en el módulo Controles de Seguridad."
+      } else {
+        diag$txt
+      }
     } else if (is.null(opt$totals) || opt$totals$cost < 1e-9) {
-      "Atención: los controles seleccionados tienen costo 0, por lo que la optimización solo maximiza el ahorro. Revisa los costos en el módulo Controles de Seguridad."
+      if (isTRUE(diag$hay_positivos)) {
+        "Se detectaron costos > 0, pero NO se seleccionó ningún control: con los costos actuales ningún control genera ahorro neto positivo (ahorro marginal menor o igual a su costo, o sin ahorro). Revisa los costos y la efectividad de los controles."
+      } else {
+        "Atención: los controles seleccionados tienen costo 0, por lo que la optimización solo maximiza el ahorro. Revisa los costos en el módulo Controles de Seguridad."
+      }
     } else {
       ""
     }
@@ -1254,10 +1271,14 @@ server <- function(input, output, session) {
     opt <- optimization_results()
     if (is.null(opt) || nrow(opt$by_scenario) == 0) return("")
     t <- opt$totals
-    sprintf("Costo total: %s | Ahorro neto total: %s | ROSI global: %s | Escenarios optimizados: %d",
-            fmt_compact_money(t$cost), fmt_compact_money(t$net),
-            if (is.na(t$rosi)) "N/D" else sprintf("%.1f%%", t$rosi * 100),
-            t$n_scenarios)
+    n_scen <- t$n_scenarios
+    n_scen_txt <- if (length(n_scen) == 0 || is.na(n_scen)) "—" else as.character(n_scen)
+    diag_txt <- opt_diag()$txt
+    base <- sprintf("Costo total: %s | Ahorro neto total: %s | ROSI global: %s | Escenarios optimizados: %s",
+                    fmt_compact_money(t$cost), fmt_compact_money(t$net),
+                    if (is.na(t$rosi)) "N/D" else sprintf("%.1f%%", t$rosi * 100),
+                    n_scen_txt)
+    if (!is.null(diag_txt) && nzchar(diag_txt)) paste(diag_txt, "|", base) else base
   })
 
   output$opt_table <- renderDT({
