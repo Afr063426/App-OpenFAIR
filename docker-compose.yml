@@ -11,6 +11,8 @@ services:
     volumes:
       # Persistir el workspace (survey.xlsx, resultados) entre reinicios
       - ./app/evaluator_workspace:/srv/shiny-server/evaluator_workspace
+      # Persistir los proyectos creados en la pestaña "Proyectos"
+      - ./app/proyectos:/srv/shiny-server/proyectos
       # Persistir los modelos de Ollama para no descargarlos en cada arranque
       - ollama_models:/home/shiny/.ollama
     environment:

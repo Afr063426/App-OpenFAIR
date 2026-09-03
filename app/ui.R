@@ -164,6 +164,42 @@ ui <- tagList(
     ),
     navset_card_tab(
       nav_panel(
+        "Proyectos",
+        div(class = "dash-content",
+          div(class = "dash-row",
+            card(
+              full_screen = FALSE,
+              card_header("Proyecto actual"),
+              textOutput("proyecto_actual_label"),
+              helpText("Cada proyecto tiene su propio survey.xlsx, controles propios y resultados guardados.")
+            ),
+            card(
+              full_screen = FALSE,
+              card_header("Cambiar de proyecto"),
+              selectInput("select_proyecto", "Selecciona un proyecto", choices = character(0)),
+              actionButton("btn_abrir_proyecto", "Abrir proyecto seleccionado",
+                           class = "btn-primary w-100")
+            ),
+            card(
+              full_screen = FALSE,
+              card_header("Nuevo proyecto"),
+              textInput("nuevo_proyecto_nombre", "Nombre del proyecto",
+                        placeholder = "Ej: Análisis financiero 2026"),
+              actionButton("btn_nuevo_proyecto", "Crear y abrir proyecto nuevo",
+                           class = "btn-success w-100")
+            )
+          ),
+          div(class = "dash-row",
+            card(
+              full_screen = TRUE,
+              card_header("Proyectos disponibles"),
+              helpText("Resultados de simulación guardados se cargan automáticamente al abrir un proyecto."),
+              DTOutput("proyectos_info")
+            )
+          )
+        )
+      ),
+      nav_panel(
         "Dashboard",
         div(class = "dash-content",
           # Banner de errores del análisis (visible aquí para diagnóstico)

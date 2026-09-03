@@ -81,6 +81,127 @@ server <- function(input, output, session) {
     })
   )
 
+  # ---------------------------------------------------------------------------
+  # MULTIPROYECTO: cambiar/crear proyecto. Todos los helpers resuelven el
+  # workspace según options(tfm.project_dir); al cambiar se limpia el estado
+  # reactivo, se refrescan los selectores y se intenta cargar la caché de
+  # resultados guardados de ESE proyecto (sin re-simular).
+  # ---------------------------------------------------------------------------
+  proyecto_refresh <- reactiveVal(0)
+
+  # Limpia el estado del análisis al cambiar de proyecto
+  limpiar_estado_analisis <- function() {
+    analysis_results(NULL)
+    mitigation_results(NULL)
+    if (exists("optimization_results", inherits = TRUE)) optimization_results(NULL)
+    if (exists("convergence_check", inherits = TRUE)) convergence_check(NULL)
+    if (exists("sensitivity_results", inherits = TRUE)) sensitivity_results(NULL)
+  }
+
+  # Cambia al proyecto cuya ruta se pasa (o NULL para el workspace por defecto)
+  # y recarga lo que se pueda sin simular.
+  cambiar_proyecto <- function(ruta = NULL) {
+    if (is.null(ruta) || identical(ruta, "__default__")) {
+      limpiar_proyecto_actual()
+    } else {
+      set_proyecto_actual(ruta)
+    }
+    limpiar_estado_analisis()
+    domain_refresh(domain_refresh() + 1)
+    custom_caps_refresh(custom_caps_refresh() + 1)
+    caps_module$clear()
+    proyecto_refresh(proyecto_refresh() + 1)
+    # Cargar resultados guardados si la firma coincide
+    cache <- tryCatch(cargar_cache_analisis(), error = function(e) NULL)
+    if (!is.null(cache)) {
+      analysis_results(cache)
+      mit <- attr(cache, "mitigacion")
+      if (!is.null(mit)) mitigation_results(mit)
+      guardado <- attr(cache, "guardado")
+      analysis_message(sprintf(
+        "Resultados cargados de la sesión anterior (%d escenarios%s, guardados %s). Pulsa 'Ejecutar análisis' para recalcular.",
+        nrow(cache$scenario_summary),
+        if (is.null(mit)) "" else " y mitigación",
+        if (is.null(guardado)) "?" else format(guardado, "%d/%m %H:%M")))
+    } else {
+      analysis_message(sprintf("Proyecto activo: %s", proyecto_actual_nombre()))
+    }
+  }
+
+  # Lista de proyectos con su info (reactivo al cambiar/crear)
+  proyectos_info <- reactive({
+    proyecto_refresh()
+    list_proyectos()
+  })
+
+  output$proyecto_actual_label <- renderText({
+    proyecto_refresh()
+    ws <- evaluator_workspace()
+    sprintf("Activo: %s  (%s)", proyecto_actual_nombre(), ws$base_dir)
+  })
+
+  # Selector de proyecto: choices valor = ruta (o __default__)
+  observe({
+    info <- proyectos_info()
+    choices <- stats::setNames(info$ruta, info$slug)
+    if (!is.null(proyecto_actual_path())) {
+      sel <- proyecto_actual_path()
+    } else {
+      sel <- info$ruta[info$slug == info$slug[grep("por defecto", info$slug)[1]]]
+      sel <- if (length(sel)) sel[1] else "__default__"
+    }
+    updateSelectInput(session, "select_proyecto", choices = choices, selected = sel)
+  })
+
+  output$proyectos_info <- DT::renderDT({
+    info <- proyectos_info()
+    info$es_actual <- NULL
+    info$ruta <- NULL
+    DT::datatable(info, rownames = FALSE,
+                  options = list(dom = "t", pageLength = 20, ordering = TRUE,
+                                 scrollX = TRUE),
+                  colnames = c("Proyecto", "Última modificación survey"))
+  })
+
+  observeEvent(input$btn_abrir_proyecto, {
+    req(input$select_proyecto)
+    cambiar_proyecto(input$select_proyecto)
+    showNotification(sprintf("Proyecto activo: %s", proyecto_actual_nombre()),
+                     type = "message")
+  })
+
+  observeEvent(input$btn_nuevo_proyecto, {
+    tryCatch({
+      nombre <- trimws(input$nuevo_proyecto_nombre)
+      ruta <- nuevo_proyecto(nombre)
+      updateTextInput(session, "nuevo_proyecto_nombre", value = "")
+      cambiar_proyecto(ruta)
+      showNotification(sprintf("Proyecto '%s' creado y activado.", nombre),
+                       type = "message")
+    }, error = function(e) {
+      analysis_message(paste("Error al crear proyecto:", err_chain(e)))
+      showNotification(paste("Error al crear proyecto:", conditionMessage(e)),
+                       type = "error")
+    })
+  })
+
+  # Al abrir la app: cargar resultados guardados del proyecto por defecto
+  # (sin re-simular Monte Carlo) si coinciden con el survey actual.
+  tryCatch({
+    cache <- cargar_cache_analisis()
+    if (!is.null(cache)) {
+      analysis_results(cache)
+      mit <- attr(cache, "mitigacion")
+      if (!is.null(mit)) mitigation_results(mit)
+      guardado <- attr(cache, "guardado")
+      analysis_message(sprintf(
+        "Resultados cargados de la sesión anterior (%d escenarios%s, guardados %s). Pulsa 'Ejecutar análisis' para recalcular.",
+        nrow(cache$scenario_summary),
+        if (is.null(mit)) "" else " y mitigación",
+        if (is.null(guardado)) "?" else format(guardado, "%d/%m %H:%M")))
+    }
+  }, error = function(e) NULL)
+
   output$analysis_message <- renderText({
     if (is.null(analysis_message())) "" else analysis_message()
   })
@@ -443,6 +564,8 @@ server <- function(input, output, session) {
         )
         incProgress(0.9, detail = "Completado")
         mitigation_results(mit)
+        # Guardar análisis + mitigación en caché para no re-simular al abrir
+        guardar_cache_analisis(main, input$iterations, mitigacion = mit)
         if (!is.null(main$missing_capabilities) &&
             nrow(main$missing_capabilities) > 0) {
           analysis_message(sprintf(
@@ -506,10 +629,21 @@ server <- function(input, output, session) {
       merged <- rbind(merged, df)
       readr::write_csv(merged, custom_capabilities_path())
       custom_caps_refresh(custom_caps_refresh() + 1)
-      analysis_message(sprintf("Controles propios importados: %d controles (total: %d).",
-                               nrow(df), nrow(merged)))
-      showNotification(sprintf("%d controles propios importados", nrow(df)),
-                       type = "message")
+      # Aviso claro si el CSV no trae costos: la optimización los necesita y
+      # los vería en 0 (ROSI global N/D).
+      n_cost <- sum(!is.na(merged$cost))
+      if (n_cost == 0) {
+        msg_imp <- sprintf(
+          "Controles propios importados: %d, pero el CSV NO trae costos (columna 'cost' ausente o vacía). La optimización los verá en 0; configura los costos en el módulo o corrige el CSV.",
+          nrow(df))
+        analysis_message(msg_imp)
+        showNotification(msg_imp, type = "warning", duration = 10)
+      } else {
+        msg_imp <- sprintf("Controles propios importados: %d (total %d, %d con costo).",
+                           nrow(df), nrow(merged), n_cost)
+        analysis_message(msg_imp)
+        showNotification(msg_imp, type = "message")
+      }
     }, error = function(e) {
       analysis_message(paste("Error al importar controles propios:", err_chain(e)))
       showNotification(paste("Error al importar controles propios:",
@@ -1056,9 +1190,21 @@ server <- function(input, output, session) {
       budget <- if (is.null(input$opt_budget)) 0 else input$opt_budget
       mode <- if (is.null(input$opt_mode)) "per_scenario" else input$opt_mode
       costs <- control_costs_effective(caps_module$control_costs())
+      # Diagnóstico: qué costos se detectaron (CSV o módulo) y qué controles
+      # del escenario carecen de costo. Ayuda a entender el "todo en 0".
       if (length(costs) == 0) {
-        analysis_message("Configura costos en el módulo Controles de Seguridad y ejecuta mitigación antes de optimizar.")
+        n_controles <- length(unique(mitigation_results()$control_level$capability_id))
+        analysis_message(sprintf(
+          "NO se detectaron costos (%d controles en mitigación sin costo definido). Importa un custom_capabilities.csv con la columna 'cost' o configura costos en el módulo Controles de Seguridad.", n_controles))
         return()
+      }
+      txt_costos <- paste(sprintf("%s=$%s", names(costs), fmt_compact_money(unname(costs))), collapse = ", ")
+      if (length(costs) <= 8) {
+        analysis_message(sprintf("Optimización con %d costos detectados: %s.",
+                                 length(costs), txt_costos))
+      } else {
+        analysis_message(sprintf("Optimización con %d costos detectados (primeros: %s).",
+                                 length(costs), txt_costos))
       }
       cl <- mitigation_results()$control_level
       if (identical(mode, "global")) {
@@ -1079,7 +1225,12 @@ server <- function(input, output, session) {
         )
       }
       optimization_results(opt)
-        analysis_message("Optimización de controles completada.")
+      analysis_message(sprintf(
+        "Optimización completada: costo óptimo %s, ahorro neto %s%s",
+        fmt_compact_money(opt$totals$cost),
+        fmt_compact_money(opt$totals$net),
+        if (is.na(opt$totals$rosi)) " (ROSI N/D: costos en 0)" else
+          sprintf(", ROSI global %.0f%%", 100 * opt$totals$rosi)))
     }, error = function(e) {
       analysis_message(paste("Error en optimización:", err_chain(e)))
     })

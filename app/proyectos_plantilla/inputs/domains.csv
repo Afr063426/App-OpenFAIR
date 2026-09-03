@@ -1,0 +1,15 @@
+domain_id,domain
+ISMP,Programa de Gestión de Seguridad de la Información
+AC,Control de Acceso
+HR,Seguridad de Recursos Humanos
+RISK,Gestión de Riesgos
+POL,Política de Seguridad
+ORG,Organización de la Seguridad de la Información
+COMP,Cumplimiento
+ASSET,Gestión de Activos
+PHY,Seguridad Física y Ambiental
+OPS,Gestión de Comunicaciones y Operaciones
+ADM,"Adquisición, Desarrollo y Mantenimiento de Sistemas de Información"
+IM,Gestión de Incidentes de Seguridad de la Información
+BC,Gestión de Continuidad del Negocio
+PRI,Prácticas de Privacidad

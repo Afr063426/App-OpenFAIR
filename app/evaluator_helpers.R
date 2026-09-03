@@ -28,7 +28,14 @@ find_app_dir <- function() {
 
 evaluator_workspace <- function() {
   app_dir <- find_app_dir()
-  base_dir <- file.path(app_dir, "evaluator_workspace")
+  # Multiproyecto: si hay un proyecto activo (options(tfm.project_dir)),
+  # el workspace es ESE directorio; si no, el clásico app/evaluator_workspace.
+  override <- getOption("tfm.project_dir", NULL)
+  base_dir <- if (!is.null(override) && nzchar(override)) {
+    normalizePath(override, mustWork = FALSE)
+  } else {
+    file.path(app_dir, "evaluator_workspace")
+  }
   inputs_dir <- file.path(base_dir, "inputs")
   results_dir <- file.path(base_dir, "results")
 
@@ -583,14 +590,18 @@ run_evaluator_analysis <- function(iterations = 1e3,
   scenario_summary <- scenario_summary |>
     dplyr::left_join(scenario_meta, by = "scenario_id")
 
-  list(results_dir = results_dir,
-       simulation_results = simulation_results,
-       scenario_summary = scenario_summary,
-       domain_summary = domain_summary,
-       qualitative_scenarios = qual_inputs$qualitative_scenarios,
-       capabilities = qual_inputs$capabilities,
-       mappings = qual_inputs$mappings,
-       missing_capabilities = missing_capabilities)
+  res <- list(results_dir = results_dir,
+              simulation_results = simulation_results,
+              scenario_summary = scenario_summary,
+              domain_summary = domain_summary,
+              qualitative_scenarios = qual_inputs$qualitative_scenarios,
+              capabilities = qual_inputs$capabilities,
+              mappings = qual_inputs$mappings,
+              missing_capabilities = missing_capabilities)
+
+  # Persistencia: guardar la caché para no re-simular al abrir la app.
+  guardar_cache_analisis(res, iterations)
+  res
 }
 
 # Ruta del archivo sidecar con capacidades/controles personalizados creados
@@ -637,7 +648,10 @@ write_custom_capability <- function(capability_id, capability = "",
   # Descartar filas con ID ausente (lectura parcial transitoria bajo OneDrive
   # Files-On-Demand): rbind fallaría con "row names contain missing values".
   df <- df[!is.na(df$capability_id) & df$capability_id != capability_id, , drop = FALSE]
-  df <- rbind(df, data.frame(
+  existing <- read_custom_capabilities()
+  existing <- existing[!is.na(existing$capability_id) &
+                         existing$capability_id == capability_id, , drop = FALSE]
+  new_row <- data.frame(
     capability_id = capability_id,
     capability = capability,
     cost = if (is.na(cost)) NA_real_ else as.numeric(cost),
@@ -645,7 +659,18 @@ write_custom_capability <- function(capability_id, capability = "",
     eff_mode = if (is.na(eff_mode)) NA_real_ else as.numeric(eff_mode),
     eff_max = if (is.na(eff_max)) NA_real_ else as.numeric(eff_max),
     stringsAsFactors = FALSE
-  ))
+  )
+  # Preservar valores existentes cuando el nuevo es NA: protege los costos
+  # importados de un re-registro accidental con NA (p. ej. lectura parcial del
+  # sidecar bajo OneDrive). Un costo 0 explícito SÍ sobrescribe.
+  if (nrow(existing) > 0) {
+    if (is.na(new_row$cost)) new_row$cost <- existing$cost[1]
+    if (is.na(new_row$eff_min)) new_row$eff_min <- existing$eff_min[1]
+    if (is.na(new_row$eff_mode)) new_row$eff_mode <- existing$eff_mode[1]
+    if (is.na(new_row$eff_max)) new_row$eff_max <- existing$eff_max[1]
+    if (!nzchar(new_row$capability)) new_row$capability <- existing$capability[1]
+  }
+  df <- rbind(df, new_row)
   readr::write_csv(df, custom_capabilities_path())
   df
 }
@@ -663,7 +688,14 @@ control_costs_effective <- function(module_costs = NULL) {
     out <- out[!is.na(out)]
   }
   if (!is.null(module_costs) && length(module_costs) > 0) {
-    out[names(module_costs)] <- unname(module_costs)
+    for (nm in names(module_costs)) {
+      # El módulo pisa el costo del CSV SOLO si configuró un costo > 0 o si el
+      # control no tiene costo persistido. Un 0 del módulo (valor por defecto
+      # cuando el usuario no toca el campo) no debe borrar el costo importado.
+      if (module_costs[[nm]] > 0 || !(nm %in% names(out))) {
+        out[nm] <- unname(module_costs[[nm]])
+      }
+    }
   }
   out
 }
@@ -728,6 +760,12 @@ persist_unknown_controls <- function(control_ids, names = NULL, costs = NULL,
   ids <- ids[!is.na(ids) & nzchar(ids)]
   if (length(ids) == 0) return(0L)
   known <- unname(get_evaluator_capabilities())
+  # Nunca re-registrar controles que YA existen en el sidecar custom aunque el
+  # catálogo no los vea (p. ej. lectura parcial bajo OneDrive): re-registrarlos
+  # con costo NA pisaría los costos importados.
+  custom_ids <- tryCatch(read_custom_capabilities()$capability_id,
+                         error = function(e) character(0))
+  known <- c(known, custom_ids)
   new_ids <- ids[!ids %in% known]
   if (length(new_ids) == 0) return(0L)
   n <- 0L
@@ -1886,3 +1924,192 @@ preguntar_a_ollama <- function(pregunta_usuario, datos_dashboard,
 
   trimws(parsed$message$content)
 }
+
+# =============================================================================
+# MULTIPROYECTO + PERSISTENCIA DE RESULTADOS
+# =============================================================================
+# Un "proyecto" es un evaluator_workspace propio (inputs/ + results/). La app
+# trabaja SIEMPRE sobre el proyecto actual; por defecto es el workspace
+# clásico app/evaluator_workspace. Los proyectos nuevos se crean como
+# subcarpetas de app/proyectos/ sembradas desde app/proyectos_plantilla/
+# (plantilla en español, 0 escenarios, 14 dominios base). En Docker, la
+# carpeta app/proyectos debe montarse como volumen para persistir.
+# -----------------------------------------------------------------------------
+
+proyectos_root <- function() {
+  d <- file.path(find_app_dir(), "proyectos")
+  if (!dir.exists(d)) dir.create(d, recursive = TRUE)
+  d
+}
+
+# Plantilla "recién creada" (en español) con la que se siembran proyectos
+# nuevos. Vive dentro del código de la app (no en un volumen).
+proyectos_plantilla <- function() {
+  file.path(find_app_dir(), "proyectos_plantilla")
+}
+
+proyecto_actual_path <- function() {
+  getOption("tfm.project_dir", NULL)
+}
+
+set_proyecto_actual <- function(path) {
+  path <- normalizePath(path, mustWork = FALSE)
+  options(tfm.project_dir = path)
+  invisible(path)
+}
+
+limpiar_proyecto_actual <- function() {
+  options(tfm.project_dir = NULL)
+  invisible(NULL)
+}
+
+# Nombre visible del proyecto actual (para la UI).
+proyecto_actual_nombre <- function() {
+  ws <- evaluator_workspace()
+  dirname_ws <- basename(ws$base_dir)
+  override <- proyecto_actual_path()
+  if (is.null(override)) return(dirname_ws)  # workspace clásico
+  slug <- basename(override)
+  slug
+}
+
+# Lista los proyectos disponibles: el clásico (por defecto) + las subcarpetas
+# de proyectos_root() que contienen inputs/survey.xlsx.
+list_proyectos <- function() {
+  cl <- data.frame(
+    slug = "evaluator_workspace (por defecto)",
+    ruta = file.path(find_app_dir(), "evaluator_workspace"),
+    es_actual = is.null(proyecto_actual_path()),
+    stringsAsFactors = FALSE
+  )
+  sub <- list.dirs(proyectos_root(), recursive = FALSE, full.names = TRUE)
+  if (length(sub) > 0) {
+    tiene_survey <- vapply(sub, function(d) file.exists(file.path(d, "inputs", "survey.xlsx")),
+                           logical(1))
+    sub <- sub[tiene_survey]
+    if (length(sub) > 0) {
+      extra <- data.frame(
+        slug = basename(sub),
+        ruta = sub,
+        es_actual = vapply(sub, function(d) identical(normalizePath(d), normalizePath(proyecto_actual_path())), logical(1)),
+        stringsAsFactors = FALSE
+      )
+      cl <- rbind(cl, extra)
+    }
+  }
+  # Fecha de última modificación del survey de cada proyecto
+  cl$mtime <- vapply(cl$ruta, function(d) {
+    f <- file.path(d, "inputs", "survey.xlsx")
+    if (file.exists(f)) format(file.mtime(f), "%d/%m %H:%M") else "—"
+  }, character(1))
+  cl
+}
+
+# Crea un proyecto nuevo a partir de la plantilla limpia en español.
+# Devuelve la ruta del proyecto creado.
+nuevo_proyecto <- function(nombre) {
+  if (is.null(nombre) || !nzchar(trimws(nombre))) {
+    stop("Escribe un nombre para el proyecto.", call. = FALSE)
+  }
+  slug <- tolower(trimws(nombre))
+  slug <- gsub("[áàäâ]", "a", slug)
+  slug <- gsub("[éèëê]", "e", slug)
+  slug <- gsub("[íìïî]", "i", slug)
+  slug <- gsub("[óòöô]", "o", slug)
+  slug <- gsub("[úùüû]", "u", slug)
+  slug <- gsub("ñ", "n", slug)
+  slug <- gsub("[^a-z0-9]+", "-", slug)
+  slug <- gsub("(^-+|-+$)", "", slug)
+  if (!nzchar(slug)) slug <- sprintf("proyecto-%d", as.integer(Sys.time()))
+  destino <- file.path(proyectos_root(), slug)
+  if (dir.exists(destino)) {
+    stop(sprintf("Ya existe un proyecto '%s'. Elige otro nombre.", slug), call. = FALSE)
+  }
+  plantilla <- proyectos_plantilla()
+  if (!dir.exists(file.path(plantilla, "inputs"))) {
+    stop("No se encontró la plantilla de proyecto (app/proyectos_plantilla).",
+         call. = FALSE)
+  }
+  dir.create(destino, recursive = TRUE)
+  contenido <- list.files(plantilla, full.names = TRUE, all.files = TRUE,
+                          no.. = TRUE)
+  ok <- all(file.copy(contenido, destino, recursive = TRUE))
+  if (!ok) stop("No se pudo crear el proyecto (revisa permisos/OneDrive).", call. = FALSE)
+  destino
+}
+
+# -----------------------------------------------------------------------------
+# Persistencia de resultados: guarda la salida completa de run_evaluator_analysis
+# con una "firma" de los inputs. Al abrir la app (o cambiar de proyecto) se
+# cargan los resultados guardados si la firma coincide con el survey actual,
+# evitando re-simular Monte Carlo.
+# -----------------------------------------------------------------------------
+cache_analisis_path <- function() {
+  file.path(evaluator_workspace()$results_dir, "cache_analisis.rds")
+}
+
+# Firma canónica de los inputs: escenarios del survey + catálogo de controles
+# (incluye costos/efectividad custom) + dominios. Cualquier cambio invalida la
+# caché.
+analisis_firma <- function() {
+  ws <- evaluator_workspace()
+  piezas <- list()
+  survey_file <- file.path(ws$inputs_dir, "survey.xlsx")
+  if (file.exists(survey_file)) {
+    wb <- tryCatch(load_survey_workbook(survey_file), error = function(e) NULL)
+    if (!is.null(wb)) {
+      for (sh in setdiff(openxlsx::getSheetNames(survey_file),
+                         c("Introduction", "Definitions", "Reference"))) {
+        dat <- tryCatch(openxlsx::readWorkbook(wb, sheet = sh, colNames = FALSE),
+                        error = function(e) NULL)
+        if (!is.null(dat)) piezas[[sh]] <- dat
+      }
+    }
+  }
+  for (f in c("domains.csv", "capabilities.csv", "qualitative_mappings.csv")) {
+    p <- file.path(ws$inputs_dir, f)
+    if (file.exists(p)) piezas[[f]] <- readLines(p, warn = FALSE)
+  }
+  custom <- read_custom_capabilities()
+  if (nrow(custom) > 0) piezas[["custom_capabilities"]] <- custom
+  tmp <- tempfile(fileext = ".rds")
+  saveRDS(piezas, tmp)
+  on.exit(unlink(tmp), add = TRUE)
+  unname(tools::md5sum(tmp))
+}
+
+# Guarda la caché de un análisis completo (solo si hay escenarios).
+# mitigacion: opcional, salida de run_mitigation_analysis() (también costosa).
+guardar_cache_analisis <- function(res, iterations, mitigacion = NULL) {
+  if (is.null(res) || is.null(res$simulation_results)) return(invisible(FALSE))
+  if (nrow(res$simulation_results) == 0) return(invisible(FALSE))
+  firma <- tryCatch(analisis_firma(), error = function(e) NULL)
+  if (is.null(firma)) return(invisible(FALSE))
+  tryCatch({
+    saveRDS(list(res = res, firma = firma, iterations = iterations,
+                 mitigacion = mitigacion, guardado = Sys.time()),
+            cache_analisis_path())
+    invisible(TRUE)
+  }, error = function(e) {
+    message("No se pudo guardar la caché de resultados: ", conditionMessage(e))
+    invisible(FALSE)
+  })
+}
+
+# Carga la caché si la firma de los inputs actuales coincide.
+# Devuelve el mismo objeto que run_evaluator_analysis() (con un atributo
+# guardado) o NULL si no hay caché válida.
+cargar_cache_analisis <- function() {
+  f <- cache_analisis_path()
+  if (!file.exists(f)) return(NULL)
+  cache <- tryCatch(readRDS(f), error = function(e) NULL)
+  if (is.null(cache) || is.null(cache$res)) return(NULL)
+  firma <- tryCatch(analisis_firma(), error = function(e) NULL)
+  if (is.null(firma) || !identical(firma, cache$firma)) return(NULL)
+  res <- cache$res
+  attr(res, "guardado") <- cache$guardado
+  attr(res, "iteraciones") <- cache$iterations
+  attr(res, "mitigacion") <- if (!is.null(cache$mitigacion)) cache$mitigacion else NULL
+  res
+}
+
