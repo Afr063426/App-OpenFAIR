@@ -51,7 +51,7 @@
 
 ## Optimización (costos en 0 / ROSI N/D)
 - `control_costs_effective(module_costs)`: el módulo pisa el costo del CSV SOLO si configura >0 o el control no está en el CSV (un 0 del módulo por defecto NO borra el costo importado). Antes el 0 por defecto pisaba costos reales.
-- btn_run_opt ahora emite diagnóstico visible: nº de costos detectados (CSV+módulo) con ejemplos, o "NO se detectaron costos (N controles en mitigación sin costo)". El mensaje final resume costo óptimo/ahorro neto/ROSI.
+- btn_run_opt avisa si no hay costos y, si los hay, resume costo óptimo/ahorro neto/ROSI en el mensaje final. (Se quitó el diagnóstico "Costos detectados (N): ..." de los totales; la optimización usa beneficio individual + multistart y ya selecciona.)
 
 ## Key gotchas
 - **OneDrive Files-On-Demand**: bajo OneDrive, archivos del workspace pueden quedar "online-only" (`ls -laO` muestra `compressed,dataless`) y su lectura/escritura da "Operation timed out" → crash de la app. `get_evaluator_capabilities()` ya cae al sidecar español si capabilities.csv es ilegible; para regenerar placeholders de artefactos (capabilities.csv, qualitative_scenarios.csv) basta borrarlos y correr import_spreadsheet desde survey.xlsx. RECOMENDADO: sacar el proyecto de OneDrive o fijar "Keep on this device".
