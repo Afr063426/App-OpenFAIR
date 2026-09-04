@@ -186,22 +186,37 @@ server <- function(input, output, session) {
     })
   })
 
-  # Al abrir la app: cargar resultados guardados del proyecto por defecto
-  # (sin re-simular Monte Carlo) si coinciden con el survey actual.
-  tryCatch({
-    cache <- cargar_cache_analisis()
-    if (!is.null(cache)) {
+  # Al abrir la app: cargar resultados guardados (sin re-simular Monte Carlo)
+  # si coinciden con el survey actual.
+  # IMPORTANTE: la carga se hace DESPUÉS de que la sesión esté activa
+  # (session$onFlushed), NO en el cuerpo de server(): si la lectura de la caché
+  # es lenta o se cuelga (p. ej. volumen OneDrive con archivos bajo demanda), el
+  # navegador muestra "Disconnected from the server". Con onFlushed la página
+  # conecta siempre y los resultados aparecen cuando la lectura termina.
+  session$onFlushed(function() {
+    tryCatch({
+      cache <- cargar_cache_analisis()
+      if (is.null(cache)) return()
+      req_cache_ok <- !is.null(cache$simulation_results) &&
+        !is.null(cache$scenario_summary) && !is.null(cache$qualitative_scenarios)
+      if (!req_cache_ok) {
+        message("[App] Caché de resultados con estructura inesperada; se ignora.")
+        return()
+      }
       analysis_results(cache)
       mit <- attr(cache, "mitigacion")
-      if (!is.null(mit)) mitigation_results(mit)
+      if (!is.null(mit) && !is.null(mit$scenario_level)) mitigation_results(mit)
       guardado <- attr(cache, "guardado")
       analysis_message(sprintf(
         "Resultados cargados de la sesión anterior (%d escenarios%s, guardados %s). Pulsa 'Ejecutar análisis' para recalcular.",
         nrow(cache$scenario_summary),
         if (is.null(mit)) "" else " y mitigación",
         if (is.null(guardado)) "?" else format(guardado, "%d/%m %H:%M")))
-    }
-  }, error = function(e) NULL)
+    }, error = function(e) {
+      message("[App] No se pudieron cargar resultados guardados: ",
+              conditionMessage(e))
+    })
+  }, once = TRUE)
 
   output$analysis_message <- renderText({
     if (is.null(analysis_message())) "" else analysis_message()
