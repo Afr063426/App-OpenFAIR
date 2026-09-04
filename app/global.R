@@ -63,6 +63,14 @@ tryCatch({
   stop(e)
 })
 
+# Restaurar el proyecto activo guardado ANTES de resolver el workspace: así, al
+# reiniciar Docker la app abre el proyecto que se estaba usando (p. ej.
+# proyectos/proyecto-1) en lugar del workspace por defecto, que puede estar
+# vacío y provocar "Disconnected from the server".
+tryCatch(restaurar_proyecto_actual(), error = function(e) {
+  message("[App] No se pudo restaurar el proyecto guardado: ", conditionMessage(e))
+})
+
 # -----------------------------------------------------------------------------
 # Helpers de lógica de negocio (no visuales)
 # -----------------------------------------------------------------------------
@@ -280,11 +288,31 @@ kpi_colors <- list(
 # es ilegible (placeholder de OneDrive) y el análisis fallará hasta resolverlo.
 # -----------------------------------------------------------------------------
 invisible({
-  ws <- evaluator_workspace()
-  n_scen <- count_survey_scenarios(file.path(ws$inputs_dir, "survey.xlsx"))
-  message(sprintf("[App] Workspace: %s", ws$base_dir))
-  message(sprintf("[App] Escenarios en survey.xlsx: %s",
-                  if (is.na(n_scen)) "ILEGIBLE (revisar OneDrive)" else n_scen))
+  # Registro de arranque DENTRO del workspace (volumen/sincronizado por
+  # OneDrive) para diagnosticar "Disconnected from the server" sin acceso a la
+  # consola del contenedor: rutas resueltas + nº de escenarios + fecha.
+  tryCatch({
+    ws <- evaluator_workspace()
+    n_scen <- count_survey_scenarios(file.path(ws$inputs_dir, "survey.xlsx"))
+    message(sprintf("[App] Workspace: %s", ws$base_dir))
+    message(sprintf("[App] Escenarios en survey.xlsx: %s",
+                    if (is.na(n_scen)) "ILEGIBLE (revisar OneDrive)" else n_scen))
+    txt <- sprintf(
+      "[App] arranque %s\napp_dir: %s\nbase_dir: %s\ninputs: %s\nresults: %s\nproyectos_root: %s\nescenarios: %s\n",
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      find_app_dir(), ws$base_dir, ws$inputs_dir, ws$results_dir,
+      tryCatch(proyectos_root(), error = function(e) paste("ERROR:", conditionMessage(e))),
+      if (is.na(n_scen)) "ILEGIBLE" else n_scen)
+    writeLines(txt, file.path(ws$base_dir, "app_runtime.txt"))
+  }, error = function(e) {
+    # Si el workspace no se puede resolver ni crear, dejar el error en el CWD
+    # (que bajo shiny-server es el directorio de la app).
+    try(writeLines(sprintf("[App] ERROR de arranque %s: %s",
+                           format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                           conditionMessage(e)),
+                   file.path(getwd(), "app_start_error.txt")))
+    message("[App] ERROR de arranque: ", conditionMessage(e))
+  })
 })
 
 # Tarjeta KPI reutilizable (título, output de texto, icono, color).

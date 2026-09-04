@@ -106,6 +106,9 @@ server <- function(input, output, session) {
     } else {
       set_proyecto_actual(ruta)
     }
+    # Persistir la elección para que al reiniciar Docker la app abra el MISMO
+    # proyecto (evita volver al workspace por defecto y caerse).
+    guardar_proyecto_actual()
     limpiar_estado_analisis()
     domain_refresh(domain_refresh() + 1)
     custom_caps_refresh(custom_caps_refresh() + 1)
@@ -193,7 +196,19 @@ server <- function(input, output, session) {
   # es lenta o se cuelga (p. ej. volumen OneDrive con archivos bajo demanda), el
   # navegador muestra "Disconnected from the server". Con onFlushed la página
   # conecta siempre y los resultados aparecen cuando la lectura termina.
+  # Interruptor de diagnóstico: TFM_DISABLE_CACHE=1 desactiva la carga de
+  # resultados guardados al arrancar (para aislar si la persistencia causa el
+  # "Disconnected from the server").
+  skip_cache <- function() {
+    identical(tolower(Sys.getenv("TFM_DISABLE_CACHE", "false")), "true") ||
+      identical(Sys.getenv("TFM_DISABLE_CACHE", ""), "1")
+  }
+
   session$onFlushed(function() {
+    if (skip_cache()) {
+      message("[App] TFM_DISABLE_CACHE activo: no se cargan resultados guardados.")
+      return()
+    }
     tryCatch({
       cache <- cargar_cache_analisis()
       if (is.null(cache)) return()

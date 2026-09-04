@@ -1978,6 +1978,39 @@ limpiar_proyecto_actual <- function() {
   invisible(NULL)
 }
 
+# -----------------------------------------------------------------------------
+# Persistencia del proyecto activo ENTRE reinicios (p. ej. docker down/up):
+# se guarda la ruta del proyecto elegido en un archivo dentro de proyectos_root()
+# (que en Docker es un volumen), y al arrancar se restaura. Sin esto, al
+# reiniciar la app volvía al workspace por defecto (que puede estar vacío) y la
+# sesión se caía ("Disconnected from the server").
+# -----------------------------------------------------------------------------
+proyecto_actual_file <- function() {
+  file.path(proyectos_root(), ".proyecto_actual")
+}
+
+guardar_proyecto_actual <- function() {
+  p <- proyecto_actual_path()
+  tryCatch(
+    writeLines(if (is.null(p)) "" else p, proyecto_actual_file()),
+    error = function(e) message("No se pudo guardar el proyecto activo: ", conditionMessage(e))
+  )
+}
+
+# Restaura el proyecto guardado (si existe y tiene inputs/). Devuelve la ruta o NULL.
+restaurar_proyecto_actual <- function() {
+  f <- proyecto_actual_file()
+  if (!file.exists(f)) return(NULL)
+  p <- tryCatch(trimws(readLines(f, warn = FALSE)[1]), error = function(e) "")
+  if (is.na(p) || !nzchar(p)) return(NULL)
+  if (!dir.exists(file.path(p, "inputs"))) {
+    message("[App] Proyecto guardado no disponible: ", p)
+    return(NULL)
+  }
+  set_proyecto_actual(p)
+  p
+}
+
 # Nombre visible del proyecto actual (para la UI).
 proyecto_actual_nombre <- function() {
   ws <- evaluator_workspace()
