@@ -2078,11 +2078,21 @@ nuevo_proyecto <- function(nombre) {
     stop("No se encontró la plantilla de proyecto (app/proyectos_plantilla).",
          call. = FALSE)
   }
-  dir.create(destino, recursive = TRUE)
-  contenido <- list.files(plantilla, full.names = TRUE, all.files = TRUE,
-                          no.. = TRUE)
-  ok <- all(file.copy(contenido, destino, recursive = TRUE))
-  if (!ok) stop("No se pudo crear el proyecto (revisa permisos/OneDrive).", call. = FALSE)
+  err <- NULL
+  ok <- tryCatch({
+    dir.create(destino, recursive = TRUE)
+    contenido <- list.files(plantilla, full.names = TRUE, all.files = TRUE,
+                            no.. = TRUE)
+    all(file.copy(contenido, destino, recursive = TRUE))
+  }, error = function(e) {
+    err <<- conditionMessage(e)
+    FALSE
+  })
+  if (!ok) {
+    stop(sprintf("No se pudo crear el proyecto%s.",
+                 if (is.null(err)) " (revisa permisos/OneDrive)" else paste0(": ", err)),
+         call. = FALSE)
+  }
   destino
 }
 

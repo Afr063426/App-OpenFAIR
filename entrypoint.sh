@@ -167,6 +167,21 @@ case "$ans" in
   *)  disable_ollama ;;
 esac
 
+# ---------------------------------------------------------------------------
+# Permisos de escritura en volúmenes bind. La app por defecto correría como el
+# usuario 'shiny' (shiny-server.conf: "run_as shiny;"), pero los volúmenes
+# ./app/evaluator_workspace y ./app/proyectos se montan con el propietario del
+# HOST (a menudo root) y 'shiny' NO puede crear proyectos ni guardar cambios.
+# Para un despliegue local de un solo usuario se ejecuta la app como root:
+# escribe en cualquier volumen SIN modificar la propiedad de los archivos en el
+# host. (El proceso shiny-server ya arranca como root; esto solo afecta a las
+# aplicaciones R, que pasan de shiny a root.)
+# ---------------------------------------------------------------------------
+if [ -f /etc/shiny-server/shiny-server.conf ]; then
+  sed -i 's/^run_as[[:space:]]\+shiny;$/run_as root;/' /etc/shiny-server/shiny-server.conf \
+    && echo -e "${YELLOW}shiny-server: aplicaciones como root (compatible con volúmenes bind).${NC}"
+fi
+
 # Finalmente se arranca la aplicación real (la CMD del Dockerfile, por defecto
 # /usr/bin/shiny-server). `exec` REEMPLAZA el proceso bash por shiny-server,
 # de modo que el PID 1 del contenedor es el servidor Shiny: las señales
