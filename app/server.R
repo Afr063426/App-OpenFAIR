@@ -1204,7 +1204,7 @@ server <- function(input, output, session) {
         analysis_message(diag_txt)
         return()
       }
-      txt_costos <- paste(sprintf("%s=$%s", names(costs), fmt_compact_money(unname(costs))), collapse = ", ")
+      txt_costos <- paste(sprintf("%s=%s", names(costs), fmt_compact_money(unname(costs))), collapse = ", ")
       diag_txt <- if (length(costs) <= 8) {
         sprintf("Costos detectados (%d): %s.", length(costs), txt_costos)
       } else {

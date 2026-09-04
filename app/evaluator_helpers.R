@@ -1399,7 +1399,9 @@ optimize_controls_global <- function(control_level, control_costs, budget = 0) {
 }
 
 # Compara el ALE inherente (sin controles) vs residual (con controles) y
-# atribuye el ahorro marginal de cada capability mediante leave-one-out.
+# atribuye a cada capability su beneficio INDIVIDUAL (ALE inherente − ALE con
+# solo ese control), estimado con multistart (mediana de medianas sobre varias
+# semillas) para que los valores que alimentan la optimización sean estables.
 run_mitigation_analysis <- function(iterations = 1e3,
                                     qualitative_scenarios = NULL,
                                     capabilities = NULL,
@@ -1407,6 +1409,7 @@ run_mitigation_analysis <- function(iterations = 1e3,
                                     simulation_results = NULL,
                                     custom_diff_params = NULL,
                                     control_costs = NULL,
+                                    sim_seeds = c(31337, 31337001),
                                     base_dir = evaluator_workspace()$base_dir) {
   ws <- evaluator_workspace()
   inputs_dir <- ws$inputs_dir
@@ -1438,7 +1441,7 @@ run_mitigation_analysis <- function(iterations = 1e3,
     )
     empty_control_level <- tibble::tibble(
       scenario_id = character(), capability_id = character(),
-      ale_without = numeric(), scenario_description = character(),
+      ale_solo = numeric(), scenario_description = character(),
       tcomm = character(), domain_id = character(),
       ale_inherent = numeric(), ale_residual = numeric(),
       marginal_savings = numeric(), reduction_pct = numeric(),
@@ -1448,38 +1451,43 @@ run_mitigation_analysis <- function(iterations = 1e3,
                 control_level = empty_control_level))
   }
 
-  # Mediana de ALE para un escenario codificado (usada en inherente/residual
-  # y en el leave-one-out por control).
+  # Mediana de ALE para un escenario codificado, con ESTIMACIÓN MULTISTART:
+  # se corre el modelo con VARIAS semillas y se toma la mediana de las medianas.
+  # El modelo (openfair_tef_tc_diff_lm) lee la semilla de options(tfm.evaluator.seed),
+  # por defecto 31337 (determinista). Sin multistart, comparar configuraciones
+  # con controles distintos es ruidoso (el muestreo de LM cambia de corrida a
+  # corrida) y el "ahorro por control" sale ~0 o negativo.
   # custom_diff_params se aplica solo si el escenario tiene controles (no en el
   # caso inherente, donde controls = "").
-  sim_median <- function(scen_df) {
+  est_mediana <- function(scen_df, n_iters) {
     qs <- evaluator::encode_scenarios(scen_df, capabilities, mappings)
     has_controls <- nzchar(trimws(paste(scen_df$controls, collapse = "")))
     if (has_controls && !is.null(custom_diff_params) && length(custom_diff_params) > 0) {
       qs$scenario[[1]]$parameters$diff <-
         utils::modifyList(qs$scenario[[1]]$parameters$diff, custom_diff_params)
     }
-    evaluator::run_simulation(qs$scenario[[1]], iterations = iterations) |>
-      dplyr::pull(.data$ale) |> stats::median()
+    meds <- vapply(sim_seeds, function(sd) {
+      options(tfm.evaluator.seed = sd)
+      on.exit(options(tfm.evaluator.seed = NULL), add = TRUE)
+      evaluator::run_simulation(qs$scenario[[1]], iterations = n_iters) |>
+        dplyr::pull(.data$ale) |> stats::median(na.rm = TRUE)
+    }, numeric(1))
+    stats::median(meds, na.rm = TRUE)
   }
 
   # ALE inherente (sin controles): se simula cada escenario con controls = ""
   inherent_ale <- vapply(seq_len(nrow(qualitative_scenarios)), function(i) {
     s <- qualitative_scenarios[i, ]
     s$controls <- ""
-    sim_median(s)
+    est_mediana(s, iterations)
   }, numeric(1))
 
-  # ALE residual: reutiliza la simulación principal si se proporciona
-  if (is.null(simulation_results)) {
-    residual_ale <- vapply(seq_len(nrow(qualitative_scenarios)), function(i) {
-      sim_median(qualitative_scenarios[i, ])
-    }, numeric(1))
-  } else {
-    residual_ale <- simulation_results |>
-      dplyr::mutate(ale = purrr::map_dbl(.data$results, ~stats::median(.x$ale))) |>
-      dplyr::pull(.data$ale)
-  }
+  # ALE residual (con todos los controles). Se estima con el mismo multistart
+  # para que la comparación con los escenarios "solo control" sea consistente
+  # (ya no se reutiliza la simulación principal de una sola semilla).
+  residual_ale <- vapply(seq_len(nrow(qualitative_scenarios)), function(i) {
+    est_mediana(qualitative_scenarios[i, ], iterations)
+  }, numeric(1))
 
   scenario_level <- qualitative_scenarios |>
     dplyr::select(scenario_id, scenario_description = scenario, tcomm, domain_id) |>
@@ -1512,20 +1520,27 @@ run_mitigation_analysis <- function(iterations = 1e3,
                     NA_real_)
     )
 
-  # Leave-one-out por capability
+  # Beneficio por control para la mochila: reducción INDIVIDUAL del ALE respecto
+  # a NO tener controles (ALE inherente − ALE con SOLO ese control).
+  # NOTA METODOLÓGICA: con leave-one-out (quitar un control del set completo) y
+  # varios controles similares, el ahorro marginal individual colapsa a ~0 (la
+  # fuerza media apenas cambia) y además es ruidoso por muestreo no emparejado;
+  # por eso la optimización "no elegía nada". El beneficio individual es la
+  # métrica natural de una mochila (valor por ítem), con la salvedad de que si
+  # dos controles se solapan sus beneficios no son aditivos (se sobre-contaría
+  # al sumarlos); la mochila elige por presupuesto, no por suma ciega.
   control_rows <- list()
   for (i in seq_len(nrow(qualitative_scenarios))) {
     s <- qualitative_scenarios[i, ]
     ctrl_ids <- unique(trimws(unlist(strsplit(as.character(s$controls), ","))))
     ctrl_ids <- ctrl_ids[nzchar(ctrl_ids)]
     for (ci in ctrl_ids) {
-      without <- paste(setdiff(ctrl_ids, ci), collapse = ", ")
       s2 <- s
-      s2$controls <- without
+      s2$controls <- ci
       control_rows[[length(control_rows) + 1]] <- tibble::tibble(
         scenario_id = s$scenario_id,
         capability_id = ci,
-        ale_without = sim_median(s2)
+        ale_solo = est_mediana(s2, iterations)
       )
     }
   }
@@ -1538,9 +1553,9 @@ run_mitigation_analysis <- function(iterations = 1e3,
       by = "scenario_id"
     ) |>
     dplyr::mutate(
-      marginal_savings = .data$ale_without - .data$ale_residual,
-      reduction_pct = ifelse(.data$ale_without > 0,
-                             .data$marginal_savings / .data$ale_without, 0)
+      marginal_savings = .data$ale_inherent - .data$ale_solo,
+      reduction_pct = ifelse(.data$ale_inherent > 0,
+                             .data$marginal_savings / .data$ale_inherent, 0)
     ) |>
     dplyr::left_join(capabilities |> dplyr::select(capability_id, capability),
                      by = "capability_id")

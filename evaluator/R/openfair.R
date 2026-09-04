@@ -324,7 +324,10 @@ select_loss_opportunities <- function(tc, diff, n = NULL, ...) {
 openfair_tef_tc_diff_lm <- function(tef, tc, diff, lm, n = 10^4, verbose = FALSE) {
 
   # make samples repeatable (and l33t)
-  set.seed(31337)
+  # Semilla configurable: por defecto 31337 (determinista), pero la app puede
+  # hacer "multistart" (variar la semilla entre corridas) para estimar las
+  # medianas de ALE de forma estable.
+  set.seed(getOption("tfm.evaluator.seed", 31337))
 
   if (verbose) {
     message("Working on scenario ")
@@ -440,7 +443,10 @@ openfair_tef_tc_diff_lm <- function(tef, tc, diff, lm, n = 10^4, verbose = FALSE
 openfair_tef_tc_diff_plm_sr <- function(tef, tc, diff, plm, sr, n = 10^4, verbose = FALSE) {
 
   # make samples repeatable (and l33t)
-  set.seed(31337)
+  # Semilla configurable: por defecto 31337 (determinista), pero la app puede
+  # hacer "multistart" (variar la semilla entre corridas) para estimar las
+  # medianas de ALE de forma estable.
+  set.seed(getOption("tfm.evaluator.seed", 31337))
 
   if (verbose) {
     message("Working on scenario ")
