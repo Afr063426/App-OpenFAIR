@@ -170,7 +170,7 @@ ui <- tagList(
             card(
               full_screen = FALSE,
               card_header("Proyecto actual"),
-              textOutput("proyecto_actual_label"),
+              verbatimTextOutput("proyecto_actual_label"),
               helpText("Cada proyecto tiene su propio survey.xlsx, controles propios y resultados guardados.")
             ),
             card(

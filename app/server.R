@@ -137,7 +137,8 @@ server <- function(input, output, session) {
   output$proyecto_actual_label <- renderText({
     proyecto_refresh()
     ws <- evaluator_workspace()
-    sprintf("Activo: %s  (%s)", proyecto_actual_nombre(), ws$base_dir)
+    sprintf("Activo: %s\nWorkspace: %s\nProyectos raíz: %s",
+            proyecto_actual_nombre(), ws$base_dir, proyectos_root())
   })
 
   # Selector de proyecto: choices valor = ruta (o __default__)
