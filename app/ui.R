@@ -345,8 +345,8 @@ ui <- tagList(
                  plotlyOutput("mit_bars", height = "450px")),
             layout_columns(
               col_widths = c(5, 7),
-              card(class = "chart-card", full_screen = TRUE, card_header("Ahorro Total por Capability"), plotlyOutput("mit_control_bars", height = "400px")),
-              card(full_screen = TRUE, card_header("Detalle por Capability"), DTOutput("mit_control_table"))
+              card(class = "chart-card", full_screen = TRUE, card_header("Ahorro Total por Capacidad"), plotlyOutput("mit_control_bars", height = "400px")),
+              card(full_screen = TRUE, card_header("Detalle por Capacidad"), DTOutput("mit_control_table"))
             )
           ),
           verbatimTextOutput("mitigation_message")

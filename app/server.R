@@ -941,11 +941,12 @@ server <- function(input, output, session) {
     p <- plotly::plot_ly(
       dat, x = ~loss_events, y = ~ale, type = "scatter", mode = "markers",
       marker = list(color = "rgba(59,130,246,0.5)", size = 6),
-      hovertemplate = "Eventos: %{x:,}<br>ALE: %{y:$,.0f}<extra></extra>"
+      hovertemplate = "Eventos: %{x:,}<br>ALE: %{y:$,.0f}<extra></extra>",
+      showlegend = FALSE
     ) |>
       plotly::layout(xaxis = list(title = "Eventos de pérdida (anualizado)"),
                      yaxis = list(title = "ALE (USD)", tickprefix = "$"))
-    dash_layout(p, plot_style())
+    dash_layout(p, plot_style()) |> plotly::layout(showlegend = FALSE)
   })
 
   # --- Resultados por Dominio ---
@@ -981,11 +982,12 @@ server <- function(input, output, session) {
         colorscale = list(c(0, "#3b82f6"), c(0.5, "#60a5fa"), c(1, "#f97316")),
         line = list(color = "rgba(0,0,0,0.2)", width = 1)
       ),
-      hovertemplate = "%{y}<br>ALE Mediana: %{x:$,.0f}<extra></extra>"
+      hovertemplate = "%{y}<br>ALE Mediana: %{x:$,.0f}<extra></extra>",
+      showlegend = FALSE
     ) |>
       plotly::layout(xaxis = list(title = "ALE Mediana (USD)", tickprefix = "$"),
                      yaxis = list(title = ""))
-    dash_layout(p, plot_style(), margin_l = 70)
+    dash_layout(p, plot_style(), margin_l = 70) |> plotly::layout(showlegend = FALSE)
   })
 
   # --- Curva de excedencia (LEC): probabilidad de pérdida >= X ---
@@ -1022,6 +1024,7 @@ server <- function(input, output, session) {
       exc, x = ~prob, y = ~ale, type = "scatter", mode = "lines",
       line = list(color = "#3b82f6", width = 3),
       fill = "tozeroy", fillcolor = "rgba(59,130,246,0.15)",
+      name = "",
       hovertemplate = "Probabilidad ≥ pérdida: %{x:.1%}<br>ALE: %{y:$,.0f}<extra></extra>"
     )
 
@@ -1055,33 +1058,15 @@ server <- function(input, output, session) {
         )
     }
 
-    # Marcadores de percentiles P10/P50/P90 (en probabilidad de excedencia):
-    # líneas punteadas verticales con la pérdida correspondiente.
-    quant <- stats::quantile(dat$ale, probs = c(0.9, 0.5, 0.1), na.rm = TRUE)
-    pcts <- c("P10" = 0.9, "P50" = 0.5, "P90" = 0.1)
-    for (i in seq_along(pcts)) {
-      nm <- names(pcts)[i]
-      pr <- pcts[[i]]
-      val <- quant[[i]]
-      if (!is.finite(val)) next  # sin valor finito: no dibujar el marcador
-      p <- p |>
-        plotly::add_segments(
-          x = pr, xend = pr, y = 0, yend = val,
-          line = list(color = "rgba(244,63,94,0.85)", dash = "dash", width = 1.5),
-          showlegend = FALSE, hoverinfo = "skip"
-        ) |>
-        plotly::add_annotations(
-          x = pr, y = val,
-          text = sprintf("%s: %s", nm, scales::dollar(val, accuracy = 0)),
-          showarrow = FALSE, yshift = 12, font = list(size = 11)
-        )
-    }
+    # (Se eliminaron los marcadores P10/P50/P90: mostraban NA con algunos datos
+    # y añadían ruido visual. La curva y el apetito al riesgo bastan.)
 
     dash_layout(p, plot_style()) |>
       plotly::layout(
         xaxis = list(title = "Probabilidad de pérdida igual o mayor",
                      tickformat = ".0%", autorange = "reversed"),
         yaxis = list(title = "Pérdida (ALE)", tickprefix = "$"),
+        showlegend = FALSE,
         title = list(text = paste("Curva de excedencia:", input$exceedance_scenario), x = 0)
       )
   })
@@ -1184,11 +1169,12 @@ server <- function(input, output, session) {
         colorscale = list(c(0, "#22c55e"), c(1, "#3b82f6")),
         line = list(color = "rgba(0,0,0,0.2)", width = 1)
       ),
-      hovertemplate = "%{y}<br>Ahorro: %{x:$,.0f}<extra></extra>"
+      hovertemplate = "%{y}<br>Ahorro: %{x:$,.0f}<extra></extra>",
+      showlegend = FALSE
     ) |>
       plotly::layout(xaxis = list(title = "Ahorro total (USD)", tickprefix = "$"),
                      yaxis = list(title = ""))
-    dash_layout(p, plot_style(), margin_l = 220)
+    dash_layout(p, plot_style(), margin_l = 220) |> plotly::layout(showlegend = FALSE)
   })
 
   output$mit_control_table <- renderDT({
@@ -1202,7 +1188,7 @@ server <- function(input, output, session) {
       DT::datatable(
         rownames = FALSE,
         options = list(pageLength = 10, dom = "Bfrtip", scrollX = TRUE),
-        colnames = c("Capability", "Control (español)", "Escenarios", "Ahorro Total", "Reducción media")
+        colnames = c("Capacidad", "Control (español)", "Escenarios", "Ahorro Total", "Reducción media")
       ) |>
       DT::formatCurrency("total_savings", currency = "$", digits = 0) |>
       DT::formatPercentage("mean_reduction", 1) |>
