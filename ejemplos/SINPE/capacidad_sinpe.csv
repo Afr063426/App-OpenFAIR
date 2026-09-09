@@ -1,0 +1,25 @@
+capability_id,capability,cost,eff_min,eff_mode,eff_max
+CTRL-0101,Verificación de identidad (Entra ID / MFA),14636.32,30,55,75
+CTRL-0102,Detección de fraudes (Azure AI),134743.62,25,45,65
+CTRL-0105,Servicio de comunicación segura (Azure ACS),1349.45,10,25,40
+CTRL-0201,Verificación de identidad (Entra ID / MFA),2500,30,55,75
+CTRL-0202,Detección de fraudes (Azure AI),23015.27,25,45,65
+CTRL-0205,Servicio de comunicación segura (Azure ACS),230.5,10,25,40
+CTRL-0301,Verificación de identidad (Entra ID / MFA),7247.92,30,55,75
+CTRL-0302,Detección de fraudes (Azure AI),66724.85,25,45,65
+CTRL-0305,Servicio de comunicación segura (Azure ACS),668.5,10,25,40
+CTRL-0401,Verificación de identidad (Entra ID / MFA),115.26,30,55,75
+CTRL-0402,Detección de fraudes (Azure AI),1061.12,25,45,65
+CTRL-0405,Servicio de comunicación segura (Azure ACS),10.63,10,25,40
+CTRL-0501,Verificación de identidad (Entra ID / MFA),365.45,30,55,75
+CTRL-0502,Detección de fraudes (Azure AI),3364.38,25,45,65
+CTRL-0505,Servicio de comunicación segura (Azure ACS),33.69,10,25,40
+CTRL-0601,Verificación de identidad (Entra ID / MFA),742.88,30,55,75
+CTRL-0602,Detección de fraudes (Azure AI),6838.98,25,45,65
+CTRL-0605,Servicio de comunicación segura (Azure ACS),68.49,10,25,40
+CTRL-0701,Verificación de identidad (Entra ID / MFA),242.24,30,55,75
+CTRL-0702,Detección de fraudes (Azure AI),2230.12,25,45,65
+CTRL-0705,Servicio de comunicación segura (Azure ACS),22.33,10,25,40
+CTRL-0801,Verificación de identidad (Entra ID / MFA),179.97,30,55,75
+CTRL-0802,Detección de fraudes (Azure AI),1645.62,25,45,65
+CTRL-0805,Servicio de comunicación segura (Azure ACS),16.48,10,25,40
